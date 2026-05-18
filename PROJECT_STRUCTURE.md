@@ -1,0 +1,35 @@
+# Project Structure
+
+```text
+apl-online-auction/
+  app/
+    api/
+      admin/
+      bids/
+      captain/
+    admin-dashboard/
+    admin-login/
+    auction/
+    captain-dashboard/
+    captain-login/
+    player-registration/
+    players/
+    teams/
+  components/
+    admin/
+    auction/
+    captain/
+    forms/
+    home/
+    layout/
+    players/
+    teams/
+    ui/
+  docs/
+  hooks/
+  lib/
+    auth/
+    supabase/
+  supabase/
+    schema.sql
+```

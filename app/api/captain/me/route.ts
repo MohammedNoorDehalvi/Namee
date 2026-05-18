@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
-import { requireRole } from '@/lib/auth/session';
-import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { requireCaptainRequest } from '@/lib/auction-server';
 
 export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
-  const session = requireRole(request, 'captain');
-  if (!session) return NextResponse.json({ error: 'Captain access required.' }, { status: 401 });
-  const supabase = createSupabaseAdmin();
-  const [{ data: captain }, { data: players }] = await Promise.all([
-    supabase.from('captains').select('id,captain_name,team_name,budget,remaining_budget,created_at').eq('id', session.id).maybeSingle(),
-    supabase.from('players').select('*').eq('sold_to_captain_id', session.id).order('created_at', { ascending: false })
+  const { response, session, supabase } = requireCaptainRequest(request);
+  if (response || !session || !supabase) return response;
+
+  const [{ data: captain }, { data: team }, { data: players }] = await Promise.all([
+    supabase.from('captains').select('id,captain_name,team_name,team_id,budget,remaining_budget,created_at').eq('id', session.id).maybeSingle(),
+    supabase.from('teams').select('*').eq('captain_id', session.id).maybeSingle(),
+    supabase.from('players').select('*').eq('sold_to_captain_id', session.id).order('sold_price', { ascending: false }),
   ]);
-  return NextResponse.json({ captain, players: players || [] });
+
+  return NextResponse.json({ captain, team, players: players || [] });
 }

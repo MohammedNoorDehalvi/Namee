@@ -1,48 +1,48 @@
 import { NextResponse } from 'next/server';
-import { requireRole } from '@/lib/auth/session';
-import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { computeNextBidState, createAuctionEvent, jsonError, requireCaptainRequest } from '@/lib/auction-server';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
-  const captainSession = requireRole(request, 'captain');
-  if (!captainSession) return NextResponse.json({ error: 'Captain login required.' }, { status: 401 });
+  const { response, session, supabase } = requireCaptainRequest(request);
+  if (response || !session || !supabase) return response;
 
-  const { player_id, bid_amount } = await request.json();
-  const amount = Number(bid_amount);
-  if (!player_id || !amount) return NextResponse.json({ error: 'Player and bid amount are required.' }, { status: 400 });
+  const { player_id } = await request.json().catch(() => ({})) as { player_id?: string };
+  const state = await computeNextBidState(supabase, session, player_id || null);
+  if ('error' in state) return jsonError(state.error || 'Bid failed.');
 
-  const supabase = createSupabaseAdmin();
-  const [{ data: auction }, { data: player }, { data: captain }] = await Promise.all([
-    supabase.from('auction').select('*').eq('id', 1).maybeSingle(),
-    supabase.from('players').select('*').eq('id', player_id).maybeSingle(),
-    supabase.from('captains').select('*').eq('id', captainSession.id).maybeSingle()
-  ]);
-
-  if (!auction || auction.auction_status !== 'Live') return NextResponse.json({ error: 'Auction is not live.' }, { status: 400 });
-  if (!player || auction.current_player_id !== player.id) return NextResponse.json({ error: 'This player is not currently being auctioned.' }, { status: 400 });
-  if (player.status !== 'Available') return NextResponse.json({ error: 'Cannot bid on sold or unsold player.' }, { status: 400 });
-  if (!captain) return NextResponse.json({ error: 'Captain not found.' }, { status: 404 });
-
-  const current = Number(auction.highest_bid || player.current_bid || player.base_price || 0);
-  if (amount <= current) return NextResponse.json({ error: 'Bid must be higher than current bid.' }, { status: 400 });
-  if (amount > captain.remaining_budget) return NextResponse.json({ error: 'Bid is more than remaining team budget.' }, { status: 400 });
+  const { auction, captain, team, player, nextAmount } = state;
 
   const { error: bidError } = await supabase.from('bids').insert({
     player_id: player.id,
     captain_id: captain.id,
-    team_name: captain.team_name,
-    bid_amount: amount
+    captain_name: captain.captain_name,
+    team_id: team.id,
+    team_name: team.team_name,
+    bid_amount: nextAmount,
   });
-  if (bidError) return NextResponse.json({ error: bidError.message }, { status: 500 });
+  if (bidError) return jsonError(bidError.message, 500);
 
-  await supabase.from('players').update({ current_bid: amount }).eq('id', player.id);
-  await supabase.from('auction').update({
-    highest_bid: amount,
-    highest_bidder_id: captain.id,
-    highest_team_name: captain.team_name,
-    updated_at: new Date().toISOString()
-  }).eq('id', 1);
+  await Promise.all([
+    supabase.from('players').update({ current_bid: nextAmount }).eq('id', player.id),
+    supabase.from('auction').update({
+      highest_bid: nextAmount,
+      highest_bidder_id: captain.id,
+      highest_bidder_team_id: team.id,
+      highest_bidder_captain_name: captain.captain_name,
+      highest_team_name: team.team_name,
+      updated_at: new Date().toISOString(),
+    }).eq('id', auction.id),
+  ]);
 
-  return NextResponse.json({ ok: true });
+  await createAuctionEvent(supabase, {
+    event_type: 'BID',
+    message: `${team.team_name} / ${captain.captain_name} bid ${nextAmount} for ${player.name}.`,
+    player_id: player.id,
+    team_id: team.id,
+    captain_id: captain.id,
+    amount: nextAmount,
+  });
+
+  return NextResponse.json({ ok: true, bid_amount: nextAmount });
 }

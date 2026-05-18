@@ -1,30 +1,17 @@
 import { NextResponse } from 'next/server';
-import { requireRole } from '@/lib/auth/session';
-import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { requireAdminRequest, selectCurrentPlayer, validateAuctionStart, jsonError } from '@/lib/auction-server';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
-  if (!requireRole(request, 'admin')) return NextResponse.json({ error: 'Admin access required.' }, { status: 401 });
-  const { player_id } = await request.json();
-  if (!player_id) return NextResponse.json({ error: 'Select a player first.' }, { status: 400 });
+  const { response, supabase } = requireAdminRequest(request);
+  if (response || !supabase) return response;
 
-  const supabase = createSupabaseAdmin();
-  const { data: player, error: playerError } = await supabase.from('players').select('*').eq('id', player_id).eq('approval_status', 'Approved').maybeSingle();
-  if (playerError || !player) return NextResponse.json({ error: 'Approved player not found.' }, { status: 404 });
-  if (player.status !== 'Available') return NextResponse.json({ error: 'Only available players can be auctioned.' }, { status: 400 });
+  const body = await request.json().catch(() => ({})) as { player_id?: string };
+  const warning = await validateAuctionStart(supabase);
+  if (warning) return jsonError(warning);
 
-  const base = Number(player.base_price || 0);
-  await supabase.from('players').update({ current_bid: base, sold_to_team: null, sold_to_captain_id: null, sold_price: null }).eq('id', player_id);
-  const { error } = await supabase.from('auction').upsert({
-    id: 1,
-    current_player_id: player_id,
-    auction_status: 'Live',
-    highest_bid: base,
-    highest_bidder_id: null,
-    highest_team_name: null,
-    updated_at: new Date().toISOString()
-  });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await supabase.from('auction').update({ auction_status: 'LIVE', started_at: new Date().toISOString(), ended_at: null, updated_at: new Date().toISOString() }).eq('id', 1);
+  if (body.player_id) return (await selectCurrentPlayer(supabase, body.player_id, true)).response;
   return NextResponse.json({ ok: true });
 }

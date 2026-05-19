@@ -1,12 +1,22 @@
 export type PlayerRole = 'Batter' | 'Bowler' | 'All-rounder' | 'Wicketkeeper';
 export type BattingStyle = 'Right Hand' | 'Left Hand';
 export type BowlingStyle = 'Fast' | 'Medium' | 'Spin' | 'None';
-
 export type PlayerStatus = 'Available' | 'Sold' | 'Unsold';
 export type PlayerAuctionStatus = 'PENDING' | 'CURRENT' | 'SOLD' | 'UNSOLD';
 export type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected';
 export type AuctionStatus = 'NOT_STARTED' | 'LIVE' | 'PAUSED' | 'ENDED';
-export type AuctionEventType = 'BID' | 'SOLD' | 'UNSOLD' | 'NEW_PLAYER' | 'TEAM_FULL' | 'ADMIN_ASSIGNED' | 'STATUS' | 'RESET' | 'UNDO';
+
+export type AuctionEventType =
+  | 'BID'
+  | 'SOLD'
+  | 'UNSOLD'
+  | 'NEW_PLAYER'
+  | 'TEAM_FULL'
+  | 'ADMIN_ASSIGNED'
+  | 'STATUS'
+  | 'RESET'
+  | 'UNDO'
+  | 'TEAM_CREATED';
 
 export type Player = {
   id: string;
@@ -51,6 +61,7 @@ export type Team = {
   remaining_budget: number;
   max_players: number;
   logo_url?: string | null;
+  captain_photo_url?: string | null;
   created_at: string;
   updated_at?: string | null;
 };

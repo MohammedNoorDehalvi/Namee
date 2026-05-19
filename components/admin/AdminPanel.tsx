@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Edit3,
   Gavel,
+  ImagePlus,
   KeyRound,
   Pause,
   Play,
@@ -25,7 +26,8 @@ import {
 import { readSession } from '@/hooks/useSession';
 import { boughtPlayersForTeam, computeTeamSpent } from '@/lib/auction-utils';
 import type { Auction, AuctionEvent, AuctionSummary, Bid, Captain, Player, Team } from '@/lib/types';
-import { formatMoney } from '@/lib/format';
+import { formatMoney, initials } from '@/lib/format';
+import { compressImageFile, fileSizeLabel } from '@/lib/image-client';
 import { toast } from '@/components/ui/AppToaster';
 
 type Overview = {
@@ -84,14 +86,17 @@ export function AdminPanel() {
   const [busy, setBusy] = useState(false);
   const [manual, setManual] = useState({ player_id: '', team_id: '', price: '' });
   const [teamForm, setTeamForm] = useState(emptyTeamForm);
+  const [teamLogoFile, setTeamLogoFile] = useState<File | null>(null);
+  const [captainPhotoFile, setCaptainPhotoFile] = useState<File | null>(null);
   const [editingPlayers, setEditingPlayers] = useState<Record<string, PlayerEdit>>({});
 
   async function api<T = unknown>(path: string, options: RequestInit = {}) {
     const session = readSession();
+    const isFormData = options.body instanceof FormData;
     const res = await fetch(path, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
         Authorization: `Bearer ${session?.token || ''}`,
         ...(options.headers || {}),
       },
@@ -161,19 +166,43 @@ export function AdminPanel() {
     );
   }
 
+  async function chooseTeamImage(file: File | null, target: 'team-logo' | 'captain-photo') {
+    if (!file) {
+      if (target === 'team-logo') setTeamLogoFile(null);
+      else setCaptainPhotoFile(null);
+      return;
+    }
+
+    try {
+      const optimized = await compressImageFile(file, { maxDimension: 800, maxSizeBytes: 800 * 1024, quality: 0.8 });
+      if (target === 'team-logo') setTeamLogoFile(optimized);
+      else setCaptainPhotoFile(optimized);
+      if (optimized.size < file.size) toast(`Image optimized: ${fileSizeLabel(optimized.size)}`);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not use this image.');
+      if (target === 'team-logo') setTeamLogoFile(null);
+      else setCaptainPhotoFile(null);
+    }
+  }
+
   async function addTeamCaptain() {
+    const body = new FormData();
+    body.append('team_name', teamForm.team_name);
+    body.append('captain_name', teamForm.captain_name);
+    body.append('password', teamForm.password);
+    body.append('budget', String(Number(teamForm.budget || 50000)));
+    body.append('max_players', String(Number(teamForm.max_players || 4)));
+    if (teamLogoFile) body.append('team_logo', teamLogoFile);
+    if (captainPhotoFile) body.append('captain_photo', captainPhotoFile);
+
     await run('Team and captain added', () =>
       api('/api/admin/teams/create', {
         method: 'POST',
-        body: JSON.stringify({
-          team_name: teamForm.team_name,
-          captain_name: teamForm.captain_name,
-          password: teamForm.password,
-          budget: Number(teamForm.budget || 50000),
-          max_players: Number(teamForm.max_players || 4),
-        }),
+        body,
       }).then(() => {
         setTeamForm(emptyTeamForm);
+        setTeamLogoFile(null);
+        setCaptainPhotoFile(null);
       }),
     );
   }
@@ -398,6 +427,24 @@ export function AdminPanel() {
             />
           </label>
         </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <ImagePicker
+            title="Team logo"
+            description="Visible on live auction, teams list, and captain dashboard."
+            file={teamLogoFile}
+            onChange={(file) => void chooseTeamImage(file, 'team-logo')}
+            onRemove={() => setTeamLogoFile(null)}
+          />
+          <ImagePicker
+            title="Captain photo"
+            description="Visible on captain dashboard and team cards."
+            file={captainPhotoFile}
+            onChange={(file) => void chooseTeamImage(file, 'captain-photo')}
+            onRemove={() => setCaptainPhotoFile(null)}
+          />
+        </div>
+
         <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-white/60">
             Password is hashed on the server with bcrypt before storing in Supabase. The plain password is only visible here before saving.
@@ -595,12 +642,21 @@ export function AdminPanel() {
             {data.teams.map((team) => {
               const bought = boughtPlayersForTeam(data.players, team);
               const full = bought.length >= (team.max_players || 4);
+              const captain = data.captains.find(
+                (item) => item.id === team.captain_id || item.team_id === team.id || item.captain_name === team.captain_name,
+              );
               return (
                 <div key={team.id} className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-2xl font-black">{team.team_name}</h3>
-                      <p className="text-sm text-white/50">Captain: {team.captain_name}</p>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <LogoAvatar src={team.logo_url} label={team.team_name} size="lg" />
+                      <div className="min-w-0">
+                        <h3 className="truncate text-2xl font-black">{team.team_name}</h3>
+                        <div className="mt-1 flex items-center gap-2 text-sm text-white/50">
+                          <LogoAvatar src={captain?.photo_url} label={team.captain_name} size="sm" />
+                          <span>Captain: {team.captain_name}</span>
+                        </div>
+                      </div>
                     </div>
                     {full && <span className="rounded-full bg-apl-green/20 px-3 py-1 text-xs font-bold text-apl-green">Team Full</span>}
                   </div>
@@ -673,6 +729,83 @@ function MiniEmpty({ title, description }: { title: string; description?: string
       <div>
         <p className="font-black text-white/85">{title}</p>
         {description && <p className="mt-1 text-sm text-white/45">{description}</p>}
+      </div>
+    </div>
+  );
+}
+
+function LogoAvatar({ src, label, size = 'md' }: { src?: string | null; label: string; size?: 'sm' | 'md' | 'lg' }) {
+  const sizes = {
+    sm: 'h-7 w-7 text-[10px] rounded-xl',
+    md: 'h-11 w-11 text-sm rounded-2xl',
+    lg: 'h-14 w-14 text-base rounded-2xl',
+  };
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={label}
+        loading="lazy"
+        decoding="async"
+        className={`${sizes[size]} shrink-0 border border-white/10 object-cover bg-white/10`}
+      />
+    );
+  }
+
+  return (
+    <div className={`${sizes[size]} grid shrink-0 place-items-center border border-white/10 bg-apl-gold/15 font-black text-apl-gold`}>
+      {initials(label)}
+    </div>
+  );
+}
+
+function ImagePicker({
+  title,
+  description,
+  file,
+  onChange,
+  onRemove,
+}: {
+  title: string;
+  description: string;
+  file: File | null;
+  onChange: (file: File | null) => void;
+  onRemove: () => void;
+}) {
+  const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+
+  return (
+    <div className="rounded-2xl border border-dashed border-white/15 bg-black/20 p-4">
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        id={`picker-${title.replace(/\s+/g, '-').toLowerCase()}`}
+        onChange={(event) => onChange(event.target.files?.[0] || null)}
+      />
+      <div className="flex items-center gap-3">
+        {preview ? (
+          <img src={preview} alt={title} className="h-16 w-16 rounded-2xl border border-white/10 object-cover" />
+        ) : (
+          <div className="grid h-16 w-16 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-apl-gold">
+            <ImagePlus className="h-6 w-6" />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="font-black">{title}</p>
+          <p className="text-xs text-white/45">{file ? `${file.name} • ${fileSizeLabel(file.size)}` : description}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <label htmlFor={`picker-${title.replace(/\s+/g, '-').toLowerCase()}`} className="cursor-pointer rounded-full border border-white/10 bg-white/[0.07] px-4 py-2 text-xs font-bold text-white hover:bg-white/[0.12]">
+              Choose Image
+            </label>
+            {file && (
+              <button type="button" onClick={onRemove} className="rounded-full border border-red-400/20 bg-red-500/10 px-4 py-2 text-xs font-bold text-red-200 hover:bg-red-500/20">
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

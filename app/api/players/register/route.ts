@@ -7,7 +7,7 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 
 const PLAYER_PHOTO_BUCKET = "player-photos";
-const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_PHOTO_SIZE_BYTES = 2 * 1024 * 1024;
 
 const schema = z.object({
   name: z.string().trim().min(2, "Player name is required."),
@@ -55,7 +55,7 @@ async function uploadPlayerPhoto(supabase: ReturnType<typeof createSupabaseAdmin
   }
 
   if (photo.size > MAX_PHOTO_SIZE_BYTES) {
-    throw new Error("Photo is too large. Upload an image under 5 MB.");
+    throw new Error("Photo is too large. Upload an image under 2 MB.");
   }
 
   const ext = fileExtension(photo);

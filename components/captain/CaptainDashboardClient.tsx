@@ -1,6 +1,5 @@
 "use client";
 
-import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { Gavel, Menu, Trophy, Users, WalletCards, X } from 'lucide-react';
 import { useAuctionRealtime } from '@/hooks/useAuctionRealtime';
@@ -78,7 +77,16 @@ export function CaptainDashboardClient() {
         <div className="mb-5 flex items-center justify-between gap-4 rounded-[2rem] border border-white/10 bg-black/25 p-4 backdrop-blur-xl">
           <div>
             <p className="badge inline-flex border-apl-gold/40 bg-apl-gold/10 text-apl-gold">Captain Auction Room</p>
-            <h1 className="mt-2 text-3xl font-black">{captain?.team_name || session?.team_name || 'Your Team'}</h1>
+            <div className="mt-2 flex items-center gap-3">
+              <LogoAvatar src={team?.logo_url} label={captain?.team_name || session?.team_name || 'Your Team'} size="lg" />
+              <div className="min-w-0">
+                <h1 className="truncate text-3xl font-black">{captain?.team_name || session?.team_name || 'Your Team'}</h1>
+                <div className="mt-1 flex items-center gap-2 text-sm text-white/60">
+                  <LogoAvatar src={captain?.photo_url} label={captain?.captain_name || session?.name || 'Captain'} size="sm" />
+                  <span>Captain: {captain?.captain_name || session?.name || 'Captain'}</span>
+                </div>
+              </div>
+            </div>
             <p className="text-sm text-white/60">Highest Bidder: {auction?.highest_team_name ? `${auction.highest_team_name} / ${auction.highest_bidder_captain_name || 'Captain'}` : 'No bids yet'}</p>
           </div>
           <button className="btn-ghost lg:hidden" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /> Team</button>
@@ -91,7 +99,7 @@ export function CaptainDashboardClient() {
             ) : (
               <div className="grid gap-6 md:grid-cols-[280px_1fr]">
                 <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] border border-white/10 bg-white/5">
-                  {currentPlayer.photo_url ? <Image src={currentPlayer.photo_url} alt={currentPlayer.name} fill className="object-cover" sizes="280px" /> : <div className="flex h-full items-center justify-center text-6xl font-black text-apl-gold">{initials(currentPlayer.name)}</div>}
+                  {currentPlayer.photo_url ? <img src={currentPlayer.photo_url} alt={currentPlayer.name} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-6xl font-black text-apl-gold">{initials(currentPlayer.name)}</div>}
                 </div>
                 <div>
                   <p className="badge inline-flex border-apl-neon/30 bg-apl-neon/10 text-apl-neon">Current Auction Player</p>
@@ -132,7 +140,13 @@ function CaptainSidebar({ open, onClose, team, bought, bids, teams, players }: {
     <div className="space-y-5">
       <div className="flex items-center justify-between lg:hidden"><h2 className="text-xl font-black">Team Sidebar</h2><button onClick={onClose}><X /></button></div>
       <div className="glass-card rounded-[2rem] p-5">
-        <div className="flex items-center gap-2"><WalletCards className="h-5 w-5 text-apl-gold" /><h3 className="font-black">Budget</h3></div>
+        <div className="flex items-center gap-3">
+          <LogoAvatar src={team?.logo_url} label={team?.team_name || 'Team'} size="md" />
+          <div>
+            <div className="flex items-center gap-2"><WalletCards className="h-5 w-5 text-apl-gold" /><h3 className="font-black">Budget</h3></div>
+            <p className="text-xs text-white/50">{team?.team_name || 'Your Team'}</p>
+          </div>
+        </div>
         <p className="mt-3 text-3xl font-black text-apl-gold">{formatMoney(team?.remaining_budget)}</p>
         <p className="text-sm text-white/55">Remaining from {formatMoney(team?.budget)}</p>
       </div>
@@ -156,7 +170,12 @@ function CaptainSidebar({ open, onClose, team, bought, bids, teams, players }: {
         <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
           {teams.map((other) => {
             const count = players.filter((player) => player.auction_status === 'SOLD' && (player.sold_to_team_id === other.id || player.sold_to_team === other.team_name)).length;
-            return <p key={other.id} className="rounded-xl bg-white/[0.05] px-3 py-2 text-sm">{other.team_name}: {count}/{other.max_players || 4}</p>;
+            return (
+              <div key={other.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.05] px-3 py-2 text-sm">
+                <span className="flex min-w-0 items-center gap-2"><LogoAvatar src={other.logo_url} label={other.team_name} size="sm" /> <span className="truncate">{other.team_name}</span></span>
+                <b>{count}/{other.max_players || 4}</b>
+              </div>
+            );
           })}
         </div>
       </div>
@@ -176,6 +195,20 @@ function CaptainSidebar({ open, onClose, team, bought, bids, teams, players }: {
       {open && <div className="fixed inset-0 z-50 bg-black/60 p-4 backdrop-blur-sm lg:hidden"><div className="ml-auto h-full max-w-sm overflow-y-auto rounded-[2rem] bg-apl-dark p-4">{content}</div></div>}
     </>
   );
+}
+
+function LogoAvatar({ src, label, size = 'md' }: { src?: string | null; label: string; size?: 'sm' | 'md' | 'lg' }) {
+  const sizes = {
+    sm: 'h-7 w-7 rounded-xl text-[10px]',
+    md: 'h-11 w-11 rounded-2xl text-sm',
+    lg: 'h-14 w-14 rounded-2xl text-base',
+  };
+
+  if (src) {
+    return <img src={src} alt={label} loading="lazy" decoding="async" className={`${sizes[size]} shrink-0 border border-white/10 bg-white/10 object-cover`} />;
+  }
+
+  return <div className={`${sizes[size]} grid shrink-0 place-items-center border border-white/10 bg-apl-gold/15 font-black text-apl-gold`}>{initials(label)}</div>;
 }
 
 function Stat({ label, value, gold }: { label: string; value: React.ReactNode; gold?: boolean }) {

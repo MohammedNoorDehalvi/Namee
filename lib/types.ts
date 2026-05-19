@@ -38,6 +38,7 @@ export type Captain = {
   team_id?: string | null;
   budget: number;
   remaining_budget: number;
+  photo_url?: string | null;
   created_at: string;
 };
 
@@ -49,6 +50,7 @@ export type Team = {
   budget: number;
   remaining_budget: number;
   max_players: number;
+  logo_url?: string | null;
   created_at: string;
   updated_at?: string | null;
 };

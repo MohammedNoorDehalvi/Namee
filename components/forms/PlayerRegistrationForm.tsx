@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { ImagePlus, Send, X } from "lucide-react";
 import { battingStyles, bowlingStyles, playerRoles } from "@/lib/constants";
 import { normalizePhoneNumber } from "@/lib/auction-utils";
+import { compressImageFile, fileSizeLabel } from "@/lib/image-client";
 import { toast } from "@/components/ui/AppToaster";
 
 export function PlayerRegistrationForm() {
@@ -25,6 +26,25 @@ export function PlayerRegistrationForm() {
 
   function update(key: string, value: string) {
     setForm((old) => ({ ...old, [key]: value }));
+  }
+
+  async function choosePhoto(selected: File | null) {
+    if (!selected) {
+      setFile(null);
+      return;
+    }
+
+    try {
+      const compressed = await compressImageFile(selected, { maxDimension: 900, maxSizeBytes: 900 * 1024, quality: 0.78 });
+      setFile(compressed);
+      if (compressed.size < selected.size) {
+        toast(`Photo optimized: ${fileSizeLabel(compressed.size)}`);
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Could not use this photo.");
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -145,7 +165,7 @@ export function PlayerRegistrationForm() {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              onChange={(e) => void choosePhoto(e.target.files?.[0] || null)}
             />
 
             {previewUrl ? (
@@ -154,7 +174,7 @@ export function PlayerRegistrationForm() {
                 <img src={previewUrl} alt="Selected player" className="h-28 w-28 rounded-2xl object-cover ring-1 ring-white/10" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold text-white">{file?.name}</p>
-                  <p className="mt-1 text-xs text-white/50">Gallery photo selected</p>
+                  <p className="mt-1 text-xs text-white/50">Gallery photo selected • {file ? fileSizeLabel(file.size) : ""}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -184,7 +204,7 @@ export function PlayerRegistrationForm() {
               >
                 <ImagePlus className="h-9 w-9 text-emerald-300" />
                 <span className="mt-3 text-base font-extrabold text-white">Choose Photo From Gallery</span>
-                <span className="mt-1 text-xs text-white/45">JPG, PNG, WEBP or GIF under 5 MB</span>
+                <span className="mt-1 text-xs text-white/45">JPG, PNG, WEBP or GIF. Large photos are optimized before upload.</span>
               </button>
             )}
           </div>

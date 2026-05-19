@@ -1,9 +1,8 @@
 "use client";
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { Crown, Radio, Trophy, Users, WalletCards } from 'lucide-react';
+import { Radio, Trophy, Users, WalletCards } from 'lucide-react';
 import { useAuctionRealtime } from '@/hooks/useAuctionRealtime';
 import { boughtPlayersForTeam, computeTeamSpent } from '@/lib/auction-utils';
 import { formatMoney, initials } from '@/lib/format';
@@ -84,7 +83,7 @@ function CurrentPlayerCard({ player, currentBid, highestTeam }: { player: Player
       <div className="grid gap-6 md:grid-cols-[280px_1fr]">
         <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] border border-white/10 bg-white/5">
           {player.photo_url ? (
-            <Image src={player.photo_url} alt={player.name} fill className="object-cover" sizes="280px" />
+            <img src={player.photo_url} alt={player.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-6xl font-black text-apl-gold">{initials(player.name)}</div>
           )}
@@ -123,9 +122,12 @@ function BudgetPanel({ teams, players }: { teams: Team[]; players: Player[] }) {
           return (
             <div key={team.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
               <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-black">{team.team_name}</p>
-                  <p className="text-xs text-white/50">Captain: {team.captain_name}</p>
+                <div className="flex min-w-0 items-center gap-3">
+                  <LogoAvatar src={team.logo_url} label={team.team_name} />
+                  <div className="min-w-0">
+                    <p className="truncate font-black">{team.team_name}</p>
+                    <p className="truncate text-xs text-white/50">Captain: {team.captain_name}</p>
+                  </div>
                 </div>
                 {full && <span className="badge border-green-400/30 bg-green-400/10 text-green-200">Team Full</span>}
               </div>
@@ -191,7 +193,7 @@ function FinalReport({ teams, players, unsoldPlayers, mostExpensive }: { teams: 
           return (
             <div key={team.id} className="glass-card rounded-[2rem] p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="flex items-center gap-2 text-2xl font-black"><Crown className="h-6 w-6 text-apl-gold" />#{index + 1} {team.team_name}</h2>
+                <h2 className="flex min-w-0 items-center gap-3 text-2xl font-black"><LogoAvatar src={team.logo_url} label={team.team_name} /> <span className="truncate">#{index + 1} {team.team_name}</span></h2>
                 <span className="badge">Spent {formatMoney(computeTeamSpent(players, team))}</span>
               </div>
               <p className="mt-1 text-sm text-white/55">Captain: {team.captain_name} • Remaining: {formatMoney(team.remaining_budget)}</p>
@@ -224,6 +226,14 @@ function FinalReport({ teams, players, unsoldPlayers, mostExpensive }: { teams: 
       </aside>
     </div>
   );
+}
+
+function LogoAvatar({ src, label }: { src?: string | null; label: string }) {
+  if (src) {
+    return <img src={src} alt={label} loading="lazy" decoding="async" className="h-11 w-11 shrink-0 rounded-2xl border border-white/10 bg-white/10 object-cover" />;
+  }
+
+  return <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-apl-gold/15 text-sm font-black text-apl-gold">{initials(label)}</div>;
 }
 
 function Info({ label, value }: { label: string; value: React.ReactNode }) {

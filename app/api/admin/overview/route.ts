@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const [players, teams, captains, bids, auction, events] = await Promise.all([
     supabase.from('players').select('*').order('created_at', { ascending: false }),
     supabase.from('teams').select('*').order('team_name', { ascending: true }),
-    supabase.from('captains').select('id,captain_name,team_name,team_id,budget,remaining_budget,created_at').order('team_name'),
+    supabase.from('captains').select('id,captain_name,team_name,team_id,budget,remaining_budget,photo_url,created_at').order('team_name'),
     supabase.from('bids').select('*').order('created_at', { ascending: false }).limit(50),
     supabase.from('auction').select('*').eq('id', 1).maybeSingle(),
     supabase.from('auction_events').select('*').order('created_at', { ascending: false }).limit(30),

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { Shield, Trophy } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Shield } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import type { Captain, Player, Team } from '@/lib/types';
 import { formatMoney, initials } from '@/lib/format';
@@ -19,31 +19,26 @@ export function TeamsClient() {
   async function load() {
     setLoading(true);
 
-    const [{ data: teamData }, { data: captainData }, { data: playerData }] = await Promise.all([
+    const [{ data: teamData }, { data: playerData }, { data: captainData }] = await Promise.all([
       supabase.from('teams').select('*').order('team_name'),
-      supabase.from('captains').select('id,captain_name,team_name,team_id,photo_url'),
-      supabase.from('players').select('*').or('status.eq.Sold,auction_status.eq.SOLD'),
+      supabase.from('players').select('*').eq('status', 'Sold'),
+      supabase.from('captains').select('id,captain_name,team_name,team_id,photo_url,budget,remaining_budget,created_at'),
     ]);
 
-    const captains = (captainData || []) as Captain[];
     const players = (playerData || []) as Player[];
+    const captains = (captainData || []) as Captain[];
 
     const grouped = ((teamData || []) as Team[]).map((team) => {
       const captain =
         captains.find((item) => item.id === team.captain_id) ||
         captains.find((item) => item.team_id === team.id) ||
-        captains.find((item) => item.team_name === team.team_name) ||
-        captains.find((item) => item.captain_name === team.captain_name);
+        captains.find((item) => item.team_name === team.team_name);
 
       return {
         ...team,
-        captain_photo_url: team.captain_photo_url || captain?.photo_url || null,
-        players: players.filter(
-          (player) =>
-            player.sold_to_captain_id === team.captain_id ||
-            player.sold_to_team_id === team.id ||
-            player.sold_to_team === team.team_name,
-        ),
+        captain_name: team.captain_name || captain?.captain_name || 'Captain',
+        captain_photo_url: captain?.photo_url || team.captain_photo_url || null,
+        players: players.filter((p) => p.sold_to_captain_id === team.captain_id || p.sold_to_team === team.team_name),
       };
     });
 
@@ -55,7 +50,7 @@ export function TeamsClient() {
     void load();
 
     const channel = supabase
-      .channel('apl-teams-v2')
+      .channel('apl-teams-images')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => void load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => void load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'captains' }, () => void load())
@@ -67,15 +62,15 @@ export function TeamsClient() {
   }, []);
 
   if (loading) {
-    return <p className="text-white/70">Loading teams...</p>;
+    return <div className="py-20 text-center text-white/70">Loading teams...</div>;
   }
 
   if (teams.length === 0) {
-    return <EmptyState title="No teams created yet" description="Admin-created teams will appear here with logos." />;
+    return <EmptyState title="No teams yet" description="Teams will appear here after admin adds them." />;
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid gap-8">
       {teams.map((team) => (
         <TeamCard key={team.id} team={team} />
       ))}
@@ -84,53 +79,49 @@ export function TeamsClient() {
 }
 
 function TeamCard({ team }: { team: TeamGroup }) {
-  const spent = useMemo(() => team.budget - team.remaining_budget, [team.budget, team.remaining_budget]);
+  const spent = Number(team.budget || 0) - Number(team.remaining_budget || 0);
 
   return (
-    <article className="glass-card p-6">
-      <div className="flex items-start gap-4">
-        <Avatar src={team.logo_url} label={team.team_name} size="xl" icon={<Shield className="h-7 w-7" />} />
+    <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur md:p-8">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+        <LogoAvatar src={team.logo_url} label={team.team_name} size="xl" />
 
         <div className="min-w-0 flex-1">
-          <h2 className="break-words text-3xl font-black text-white sm:text-4xl">{team.team_name}</h2>
-
-          <div className="mt-2 flex items-center gap-2 text-white/65">
-            <Avatar src={team.captain_photo_url} label={team.captain_name} size="xs" />
+          <h2 className="break-words text-4xl font-black text-white md:text-5xl">{team.team_name}</h2>
+          <div className="mt-3 flex items-center gap-3 text-lg text-white/65">
+            <LogoAvatar src={team.captain_photo_url} label={team.captain_name} size="sm" />
             <span>Captain: {team.captain_name}</span>
           </div>
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-3">
+      <div className="mt-7 grid grid-cols-2 gap-4">
         <Info label="Total Budget" value={formatMoney(team.budget)} />
         <Info label="Remaining" value={formatMoney(team.remaining_budget)} />
         <Info label="Players Bought" value={team.players.length} />
         <Info label="Points Spent" value={formatMoney(spent)} />
       </div>
 
-      <div className="mt-5 rounded-3xl bg-white/[0.04] p-4">
+      <div className="mt-6 rounded-3xl bg-black/15 p-4">
         {team.players.length === 0 ? (
           <p className="text-white/55">No bought players yet.</p>
         ) : (
-          <div className="space-y-3">
-            {team.players.map((player) => (
-              <div key={player.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 p-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <Avatar src={player.photo_url} label={player.name} size="sm" />
-                  <div className="min-w-0">
-                    <p className="truncate font-bold text-white">{player.name}</p>
-                    <p className="text-xs text-white/55">{player.role}</p>
-                  </div>
+          <div className="grid gap-3">
+            {team.players.map((p) => (
+              <div key={p.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <LogoAvatar src={p.photo_url} label={p.name} size="md" />
+                <div className="min-w-0">
+                  <p className="truncate font-bold text-white">{p.name}</p>
+                  <p className="text-sm text-white/55">
+                    {p.role} • {formatMoney(p.sold_price)}
+                  </p>
                 </div>
-                <span className="shrink-0 rounded-full bg-apl-gold/15 px-3 py-1 text-xs font-black text-apl-gold">
-                  {formatMoney(player.sold_price)}
-                </span>
               </div>
             ))}
           </div>
         )}
       </div>
-    </article>
+    </section>
   );
 }
 
@@ -138,47 +129,42 @@ function Info({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
       <p className="text-sm text-white/45">{label}</p>
-      <p className="mt-1 text-xl font-black text-white">{value}</p>
+      <p className="mt-1 text-2xl font-black text-white">{value}</p>
     </div>
   );
 }
 
-function Avatar({
+function LogoAvatar({
   src,
   label,
   size = 'md',
-  icon,
 }: {
   src?: string | null;
   label: string;
-  size?: 'xs' | 'sm' | 'md' | 'xl';
-  icon?: React.ReactNode;
+  size?: 'sm' | 'md' | 'xl';
 }) {
-  const [ok, setOk] = useState(Boolean(src));
   const sizes = {
-    xs: 'h-8 w-8 rounded-full text-[10px]',
-    sm: 'h-11 w-11 rounded-2xl text-xs',
-    md: 'h-14 w-14 rounded-2xl text-sm',
-    xl: 'h-20 w-20 rounded-3xl text-lg',
+    sm: 'h-9 w-9 rounded-full text-xs',
+    md: 'h-12 w-12 rounded-2xl text-sm',
+    xl: 'h-28 w-28 rounded-[1.6rem] text-2xl',
   };
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={label}
+        loading="lazy"
+        className={`${sizes[size]} shrink-0 border border-white/10 object-cover shadow-lg shadow-black/30`}
+      />
+    );
+  }
 
   return (
     <div
-      className={`${sizes[size]} grid shrink-0 place-items-center overflow-hidden border border-white/10 bg-apl-gold/15 font-black text-apl-gold shadow-glow`}
+      className={`${sizes[size]} flex shrink-0 items-center justify-center border border-yellow-300/20 bg-yellow-300/15 font-black text-yellow-300`}
     >
-      {src && ok ? (
-        <img
-          src={src}
-          alt={label}
-          loading="lazy"
-          decoding="async"
-          referrerPolicy="no-referrer"
-          className="h-full w-full object-cover"
-          onError={() => setOk(false)}
-        />
-      ) : (
-        icon || <span>{initials(label)}</span>
-      )}
+      {size === 'xl' ? <Shield /> : initials(label)}
     </div>
   );
 }

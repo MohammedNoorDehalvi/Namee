@@ -5,7 +5,6 @@ export type PlayerStatus = 'Available' | 'Sold' | 'Unsold';
 export type PlayerAuctionStatus = 'PENDING' | 'CURRENT' | 'SOLD' | 'UNSOLD';
 export type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected';
 export type AuctionStatus = 'NOT_STARTED' | 'LIVE' | 'PAUSED' | 'ENDED';
-
 export type AuctionEventType =
   | 'BID'
   | 'SOLD'
@@ -15,8 +14,7 @@ export type AuctionEventType =
   | 'ADMIN_ASSIGNED'
   | 'STATUS'
   | 'RESET'
-  | 'UNDO'
-  | 'TEAM_CREATED';
+  | 'UNDO';
 
 export type Player = {
   id: string;
@@ -46,9 +44,9 @@ export type Captain = {
   captain_name: string;
   team_name: string;
   team_id?: string | null;
+  photo_url?: string | null;
   budget: number;
   remaining_budget: number;
-  photo_url?: string | null;
   created_at: string;
 };
 
@@ -57,11 +55,11 @@ export type Team = {
   team_name: string;
   captain_id: string;
   captain_name: string;
+  logo_url?: string | null;
+  captain_photo_url?: string | null;
   budget: number;
   remaining_budget: number;
   max_players: number;
-  logo_url?: string | null;
-  captain_photo_url?: string | null;
   created_at: string;
   updated_at?: string | null;
 };

@@ -1,12 +1,12 @@
 "use client";
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
-import { Radio, Shield, Trophy, Users, WalletCards } from 'lucide-react';
+import { useMemo } from 'react';
+import { Radio, Trophy, Users, WalletCards } from 'lucide-react';
 import { useAuctionRealtime } from '@/hooks/useAuctionRealtime';
 import { boughtPlayersForTeam, computeTeamSpent } from '@/lib/auction-utils';
 import { formatMoney, initials } from '@/lib/format';
-import type { Bid, Player, Team } from '@/lib/types';
+import type { Player, Team } from '@/lib/types';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 
@@ -15,17 +15,14 @@ export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }
 
   const soldPlayers = players.filter((player) => player.auction_status === 'SOLD' || player.status === 'Sold');
   const unsoldPlayers = players.filter((player) => player.auction_status === 'UNSOLD' || player.status === 'Unsold');
-
   const mostExpensive = useMemo(
     () => [...soldPlayers].sort((a, b) => Number(b.sold_price || 0) - Number(a.sold_price || 0))[0] || null,
     [soldPlayers],
   );
-
   const leaderboard = useMemo(
     () => [...teams].sort((a, b) => computeTeamSpent(soldPlayers, b) - computeTeamSpent(soldPlayers, a)),
     [teams, soldPlayers],
   );
-
   const highestTeam =
     teams.find((team) => team.id === auction?.highest_bidder_team_id) ||
     teams.find((team) => team.team_name === auction?.highest_team_name) ||
@@ -33,39 +30,37 @@ export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }
 
   if (loading) {
     return (
-      <div className="section-shell flex min-h-[50vh] items-center justify-center">
+      <div className="flex min-h-[50vh] items-center justify-center">
         <LoadingSpinner label="Loading live auction..." />
       </div>
     );
   }
 
   return (
-    <main className="section-shell space-y-8">
-      <section className="glass-card relative overflow-hidden p-6 sm:p-8">
-        <div className="absolute -right-12 -top-12 h-44 w-44 rounded-full bg-apl-green/20 blur-3xl" />
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+    <div className="space-y-8">
+      <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur md:p-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-apl-gold/25 bg-apl-gold/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-apl-gold">
-              <Radio className="h-4 w-4" />
-              {auction?.auction_status || 'NOT_STARTED'} Auction
+            <p className="inline-flex items-center gap-2 rounded-full border border-yellow-300/20 bg-yellow-300/10 px-4 py-2 text-xs font-black uppercase tracking-wider text-yellow-300">
+              <Radio size={15} /> {auction?.auction_status || 'NOT_STARTED'} Auction
             </p>
-            <h1 className="mt-4 text-4xl font-black text-white sm:text-6xl">APL IPL-Style Live Auction</h1>
-            <p className="mt-3 max-w-2xl text-white/65">
-              Realtime current player, team logos, captain photos, highest bidder, bids, budgets and final squads.
+            <h1 className="mt-4 text-4xl font-black text-white md:text-6xl">APL IPL-Style Live Auction</h1>
+            <p className="mt-3 max-w-2xl text-white/60">
+              Realtime current player, bids, teams, budgets, events and final squads.
             </p>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-black/25 p-4">
-            <p className="text-sm text-white/50">Highest Bidder</p>
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <p className="text-sm text-white/45">Highest Bidder</p>
             <div className="mt-2 flex items-center gap-3">
-              <Avatar src={highestTeam?.logo_url} label={auction?.highest_team_name || 'No bids'} size="md" />
+              <LogoAvatar src={highestTeam?.logo_url} label={highestTeam?.team_name || 'No bids'} size="md" />
               <div>
                 <p className="font-black text-white">
                   {auction?.highest_team_name
                     ? `${auction.highest_team_name} / ${auction.highest_bidder_captain_name || 'Captain'}`
                     : 'No bids yet'}
                 </p>
-                <p className="text-sm text-apl-gold">Current bid: {formatMoney(currentBid)}</p>
+                <p className="text-sm text-white/50">Current bid: {formatMoney(currentBid)}</p>
               </div>
             </div>
           </div>
@@ -75,23 +70,25 @@ export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }
       {auction?.auction_status === 'ENDED' ? (
         <FinalReport teams={leaderboard} players={soldPlayers} unsoldPlayers={unsoldPlayers} mostExpensive={mostExpensive} />
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+        <div className="grid gap-8 lg:grid-cols-[1.35fr_0.9fr]">
           <CurrentPlayerCard player={currentPlayer} currentBid={currentBid} highestTeam={auction?.highest_team_name || null} />
           <div className="space-y-6">
-            <BudgetPanel teams={teams} players={players} />
+            <BudgetPanel teams={teams} players={soldPlayers} />
             <BidHistory bids={bids} teams={teams} />
             <EventPanel events={events} />
             <UnsoldPanel players={unsoldPlayers} />
+            {mode === 'public' && (
+              <Link
+                href="/captain"
+                className="block rounded-full bg-gradient-to-r from-yellow-300 to-green-400 px-6 py-4 text-center font-black text-black shadow-lg shadow-green-500/20"
+              >
+                Captain Login to Bid
+              </Link>
+            )}
           </div>
         </div>
       )}
-
-      {mode === 'public' && auction?.auction_status !== 'ENDED' && (
-        <Link href="/captain-login" className="btn-primary mx-auto flex max-w-xl justify-center">
-          Captain Login to Bid
-        </Link>
-      )}
-    </main>
+    </div>
   );
 }
 
@@ -106,82 +103,66 @@ function CurrentPlayerCard({
 }) {
   if (!player) {
     return (
-      <div className="glass-card flex min-h-[420px] items-center justify-center p-8">
-        <EmptyState title="No current player selected" description="Admin will select the first player or next random player." />
+      <div className="flex min-h-[420px] items-center justify-center rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 text-center shadow-2xl backdrop-blur">
+        <EmptyState title="No current player" description="Waiting for admin to select the next player." />
       </div>
     );
   }
 
   return (
-    <article className="glass-card overflow-hidden p-5 sm:p-7">
-      <div className="grid gap-5 lg:grid-cols-[260px_1fr]">
-        <div className="aspect-square overflow-hidden rounded-[2rem] border border-white/10 bg-black/30">
-          {player.photo_url ? (
-            <img
-              src={player.photo_url}
-              alt={player.name}
-              loading="eager"
-              decoding="async"
-              referrerPolicy="no-referrer"
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="grid h-full place-items-center text-5xl font-black text-apl-gold">{initials(player.name)}</div>
-          )}
-        </div>
-
-        <div>
-          <p className="text-sm font-black uppercase tracking-[0.25em] text-apl-gold">Current Player</p>
-          <h2 className="mt-2 text-4xl font-black text-white sm:text-6xl">{player.name}</h2>
-          <p className="mt-2 text-white/60">
-            {player.role} • Batting: {player.batting_style} • Bowling: {player.bowling_style}
-          </p>
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <BigStat label="Base Price" value={formatMoney(player.base_price)} />
-            <BigStat label="Current Bid" value={formatMoney(currentBid)} highlighted />
-            <BigStat label="Highest Team" value={highestTeam || 'No bids yet'} />
-            <BigStat label="Status" value={player.auction_status || player.status} />
+    <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur">
+      <div className="p-6 md:p-8">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+          <LogoAvatar src={player.photo_url} label={player.name} size="xl" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-black uppercase tracking-wider text-green-300">Current Player</p>
+            <h2 className="mt-2 break-words text-4xl font-black text-white md:text-6xl">{player.name}</h2>
+            <p className="mt-3 text-white/60">
+              {player.role} • Batting: {player.batting_style} • Bowling: {player.bowling_style}
+            </p>
           </div>
         </div>
+
+        <div className="mt-8 grid grid-cols-2 gap-4">
+          <BigStat label="Base Price" value={formatMoney(player.base_price)} />
+          <BigStat label="Current Bid" value={formatMoney(currentBid)} highlighted />
+          <BigStat label="Highest Bidder" value={highestTeam || 'No bids'} />
+          <BigStat label="Status" value={player.auction_status || player.status} />
+        </div>
       </div>
-    </article>
+    </section>
   );
 }
 
 function BudgetPanel({ teams, players }: { teams: Team[]; players: Player[] }) {
   return (
-    <section className="glass-card p-5">
-      <h3 className="flex items-center gap-2 text-lg font-black text-white">
-        <WalletCards className="h-5 w-5 text-apl-gold" />
-        Teams & Points
+    <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur">
+      <h3 className="flex items-center gap-2 font-black text-white">
+        <WalletCards size={18} className="text-yellow-300" /> Teams & Points
       </h3>
-
-      <div className="mt-4 space-y-3">
-        {teams.length === 0 && <p className="text-white/50">No teams created yet.</p>}
-
+      <div className="mt-4 grid gap-3">
+        {teams.length === 0 && <p className="text-sm text-white/50">No teams created yet.</p>}
         {teams.map((team) => {
           const bought = boughtPlayersForTeam(players, team);
           const full = bought.length >= (team.max_players || 4);
 
           return (
-            <div key={team.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div key={team.id} className="rounded-2xl border border-white/10 bg-black/15 p-3">
               <div className="flex items-center gap-3">
-                <Avatar src={team.logo_url} label={team.team_name} size="sm" icon={<Shield className="h-5 w-5" />} />
+                <LogoAvatar src={team.logo_url} label={team.team_name} size="sm" />
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate font-black text-white">{team.team_name}</p>
-                    {full && <span className="rounded-full bg-red-400/15 px-2 py-0.5 text-[10px] font-black text-red-200">Team Full</span>}
-                  </div>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-white/55">
-                    <Avatar src={team.captain_photo_url} label={team.captain_name} size="xs" />
-                    <span>Captain: {team.captain_name}</span>
+                  <p className="truncate font-black text-white">{team.team_name}</p>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-white/50">
+                    <LogoAvatar src={team.captain_photo_url} label={team.captain_name} size="xs" />
+                    <span className="truncate">Captain: {team.captain_name}</span>
                   </div>
                 </div>
+                {full && (
+                  <span className="rounded-full bg-green-300 px-2 py-1 text-[10px] font-black text-black">Team Full</span>
+                )}
               </div>
-              <p className="mt-3 text-sm text-white/55">
-                Remaining <span className="font-bold text-apl-gold">{formatMoney(team.remaining_budget)}</span> • {bought.length}/
-                {team.max_players || 4} players
+              <p className="mt-2 text-xs text-white/55">
+                Remaining {formatMoney(team.remaining_budget)} • {bought.length}/{team.max_players || 4} players
               </p>
             </div>
           );
@@ -191,35 +172,36 @@ function BudgetPanel({ teams, players }: { teams: Team[]; players: Player[] }) {
   );
 }
 
-function BidHistory({ bids, teams }: { bids: Bid[]; teams: Team[] }) {
+function BidHistory({
+  bids,
+  teams,
+}: {
+  bids: { id: string; team_name: string; team_id?: string | null; captain_name?: string | null; bid_amount: number }[];
+  teams: Team[];
+}) {
   return (
-    <section className="glass-card p-5">
-      <h3 className="flex items-center gap-2 text-lg font-black text-white">
-        <Trophy className="h-5 w-5 text-apl-gold" />
-        Last 10 Bids
+    <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur">
+      <h3 className="flex items-center gap-2 font-black text-white">
+        <Trophy size={18} className="text-yellow-300" /> Last 10 Bids
       </h3>
-
-      <div className="mt-4 space-y-3">
-        {bids.length === 0 && <p className="text-white/50">No bids yet.</p>}
-
+      <div className="mt-4 grid gap-3">
+        {bids.length === 0 && <p className="text-sm text-white/50">No bids yet.</p>}
         {bids.map((bid) => {
-          const team = teams.find((item) => item.id === bid.team_id) || teams.find((item) => item.team_name === bid.team_name);
+          const bidTeam = teams.find((team) => team.id === bid.team_id) || teams.find((team) => team.team_name === bid.team_name);
 
           return (
-            <div key={bid.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+            <div key={bid.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/15 p-3">
               <div className="flex min-w-0 items-center gap-3">
-                <Avatar src={team?.logo_url} label={bid.team_name} size="sm" />
+                <LogoAvatar src={bidTeam?.logo_url} label={bid.team_name} size="sm" />
                 <div className="min-w-0">
                   <p className="truncate font-bold text-white">{bid.team_name}</p>
-                  <div className="flex items-center gap-2 text-xs text-white/55">
-                    <Avatar src={team?.captain_photo_url} label={bid.captain_name || 'Captain'} size="xs" />
-                    <span>{bid.captain_name || 'Captain'}</span>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-white/50">
+                    <LogoAvatar src={bidTeam?.captain_photo_url} label={bid.captain_name || bidTeam?.captain_name || 'Captain'} size="xs" />
+                    <span className="truncate">{bid.captain_name || bidTeam?.captain_name || 'Captain'}</span>
                   </div>
                 </div>
               </div>
-              <span className="shrink-0 rounded-full bg-apl-gold/15 px-3 py-1 text-sm font-black text-apl-gold">
-                {formatMoney(bid.bid_amount)}
-              </span>
+              <p className="shrink-0 font-black text-green-300">{formatMoney(bid.bid_amount)}</p>
             </div>
           );
         })}
@@ -230,16 +212,14 @@ function BidHistory({ bids, teams }: { bids: Bid[]; teams: Team[] }) {
 
 function EventPanel({ events }: { events: { id: string; message: string; created_at: string }[] }) {
   return (
-    <section className="glass-card p-5">
-      <h3 className="flex items-center gap-2 text-lg font-black text-white">
-        <Radio className="h-5 w-5 text-apl-green" />
-        Live Messages
+    <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur">
+      <h3 className="flex items-center gap-2 font-black text-white">
+        <Users size={18} className="text-green-300" /> Live Messages
       </h3>
-
-      <div className="mt-4 space-y-2">
-        {events.length === 0 && <p className="text-white/50">No auction messages yet.</p>}
+      <div className="mt-4 grid gap-2">
+        {events.length === 0 && <p className="text-sm text-white/50">No auction messages yet.</p>}
         {events.map((event) => (
-          <p key={event.id} className="rounded-2xl bg-white/[0.04] p-3 text-sm text-white/65">
+          <p key={event.id} className="rounded-2xl bg-black/15 p-3 text-sm text-white/65">
             {event.message}
           </p>
         ))}
@@ -250,19 +230,14 @@ function EventPanel({ events }: { events: { id: string; message: string; created
 
 function UnsoldPanel({ players }: { players: Player[] }) {
   return (
-    <section className="glass-card p-5">
-      <h3 className="flex items-center gap-2 text-lg font-black text-white">
-        <Users className="h-5 w-5 text-apl-green" />
-        Unsold Players
-      </h3>
-
-      <div className="mt-4 space-y-2">
-        {players.length === 0 && <p className="text-white/50">No unsold players yet.</p>}
+    <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur">
+      <h3 className="font-black text-white">Unsold Players</h3>
+      <div className="mt-4 grid gap-2">
+        {players.length === 0 && <p className="text-sm text-white/50">No unsold players yet.</p>}
         {players.slice(0, 8).map((player) => (
-          <div key={player.id} className="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-3">
-            <Avatar src={player.photo_url} label={player.name} size="sm" />
-            <span className="font-bold text-white/80">{player.name}</span>
-          </div>
+          <p key={player.id} className="rounded-2xl bg-black/15 p-3 text-sm text-white/65">
+            {player.name}
+          </p>
         ))}
       </div>
     </section>
@@ -281,109 +256,102 @@ function FinalReport({
   mostExpensive: Player | null;
 }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-      <section className="grid gap-5 md:grid-cols-2">
+    <div className="grid gap-8 lg:grid-cols-[1fr_0.8fr]">
+      <section className="space-y-4">
         {teams.map((team, index) => {
           const bought = boughtPlayersForTeam(players, team);
 
           return (
-            <article key={team.id} className="glass-card p-5">
+            <div key={team.id} className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur">
               <div className="flex items-center gap-3">
-                <Avatar src={team.logo_url} label={team.team_name} size="md" />
+                <LogoAvatar src={team.logo_url} label={team.team_name} size="md" />
                 <div>
-                  <p className="text-sm font-bold text-apl-gold">#{index + 1} by spending</p>
-                  <h2 className="text-2xl font-black text-white">{team.team_name}</h2>
+                  <h2 className="text-2xl font-black text-white">
+                    #{index + 1} {team.team_name}
+                  </h2>
+                  <p className="text-white/55">
+                    Captain: {team.captain_name} • Remaining: {formatMoney(team.remaining_budget)}
+                  </p>
                 </div>
               </div>
-              <p className="mt-3 text-white/55">
-                Captain: {team.captain_name} • Remaining: {formatMoney(team.remaining_budget)}
-              </p>
-              <p className="mt-1 text-apl-gold">Spent {formatMoney(computeTeamSpent(players, team))}</p>
-
-              <div className="mt-4 space-y-2">
-                {bought.length === 0 && <p className="text-white/45">No players bought.</p>}
+              <p className="mt-3 text-sm font-bold text-green-300">Spent {formatMoney(computeTeamSpent(players, team))}</p>
+              <div className="mt-3 grid gap-2">
+                {bought.length === 0 && <p className="text-sm text-white/50">No players bought.</p>}
                 {bought.map((player) => (
-                  <div key={player.id} className="flex items-center justify-between rounded-2xl bg-white/[0.04] p-3">
-                    <span className="font-bold text-white">{player.name}</span>
-                    <span className="text-apl-gold">{formatMoney(player.sold_price)}</span>
+                  <div key={player.id} className="flex items-center justify-between rounded-2xl bg-black/15 p-3">
+                    <span className="text-white">{player.name}</span>
+                    <span className="text-white/55">
+                      {player.role} • {formatMoney(player.sold_price)}
+                    </span>
                   </div>
                 ))}
               </div>
-            </article>
+            </div>
           );
         })}
       </section>
 
-      <aside className="space-y-5">
-        <section className="glass-card p-5">
-          <h3 className="text-lg font-black text-white">Most Expensive Player</h3>
-          <div className="mt-4 flex items-center gap-3">
-            <Avatar src={mostExpensive?.photo_url} label={mostExpensive?.name || 'None'} size="md" />
-            <div>
-              <p className="font-black text-white">{mostExpensive ? mostExpensive.name : 'None'}</p>
-              <p className="text-apl-gold">{formatMoney(mostExpensive?.sold_price)}</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="glass-card p-5">
-          <h3 className="text-lg font-black text-white">Unsold Players</h3>
-          <div className="mt-3 space-y-2">
-            {unsoldPlayers.length === 0 && <p className="text-white/45">No unsold players.</p>}
-            {unsoldPlayers.map((player) => (
-              <p key={player.id} className="rounded-2xl bg-white/[0.04] p-3 text-white/70">
-                {player.name}
-              </p>
-            ))}
-          </div>
-        </section>
-      </aside>
+      <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur">
+        <h3 className="text-2xl font-black text-white">Auction Summary</h3>
+        <div className="mt-5 grid gap-3">
+          <BigStat label="Most Expensive Player" value={mostExpensive ? mostExpensive.name : 'None'} />
+          <BigStat label="Price" value={formatMoney(mostExpensive?.sold_price)} highlighted />
+        </div>
+        <h4 className="mt-6 font-black text-white">Unsold Players</h4>
+        <div className="mt-3 grid gap-2">
+          {unsoldPlayers.length === 0 && <p className="text-sm text-white/50">No unsold players.</p>}
+          {unsoldPlayers.map((player) => (
+            <p key={player.id} className="rounded-2xl bg-black/15 p-3 text-sm text-white/65">
+              {player.name}
+            </p>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
 
-function Avatar({
+function LogoAvatar({
   src,
   label,
   size = 'md',
-  icon,
 }: {
   src?: string | null;
   label: string;
-  size?: 'xs' | 'sm' | 'md';
-  icon?: React.ReactNode;
+  size?: 'xs' | 'sm' | 'md' | 'xl';
 }) {
-  const [ok, setOk] = useState(Boolean(src));
   const sizes = {
-    xs: 'h-7 w-7 rounded-full text-[10px]',
-    sm: 'h-10 w-10 rounded-2xl text-xs',
-    md: 'h-14 w-14 rounded-2xl text-sm',
+    xs: 'h-6 w-6 rounded-full text-[9px]',
+    sm: 'h-9 w-9 rounded-xl text-[10px]',
+    md: 'h-12 w-12 rounded-2xl text-xs',
+    xl: 'h-36 w-36 rounded-[2rem] text-2xl',
   };
 
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={label}
+        loading="lazy"
+        className={`${sizes[size]} shrink-0 border border-white/10 object-cover shadow-lg shadow-black/30`}
+      />
+    );
+  }
+
   return (
-    <div className={`${sizes[size]} grid shrink-0 place-items-center overflow-hidden border border-white/10 bg-apl-gold/15 font-black text-apl-gold`}>
-      {src && ok ? (
-        <img
-          src={src}
-          alt={label}
-          loading="lazy"
-          decoding="async"
-          referrerPolicy="no-referrer"
-          className="h-full w-full object-cover"
-          onError={() => setOk(false)}
-        />
-      ) : (
-        icon || <span>{initials(label)}</span>
-      )}
+    <div
+      className={`${sizes[size]} flex shrink-0 items-center justify-center border border-yellow-300/20 bg-yellow-300/15 font-black text-yellow-300`}
+    >
+      {initials(label)}
     </div>
   );
 }
 
 function BigStat({ label, value, highlighted }: { label: string; value: React.ReactNode; highlighted?: boolean }) {
   return (
-    <div className={`rounded-3xl border p-4 ${highlighted ? 'border-apl-gold/40 bg-apl-gold/10' : 'border-white/10 bg-white/[0.04]'}`}>
+    <div className={`rounded-2xl border p-4 ${highlighted ? 'border-green-300/30 bg-green-300/10' : 'border-white/10 bg-black/15'}`}>
       <p className="text-sm text-white/45">{label}</p>
-      <p className="mt-1 text-2xl font-black text-white">{value}</p>
+      <p className={`mt-1 text-2xl font-black ${highlighted ? 'text-green-300' : 'text-white'}`}>{value}</p>
     </div>
   );
 }

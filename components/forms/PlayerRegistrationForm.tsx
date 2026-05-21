@@ -1,234 +1,228 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { ImagePlus, Send, X } from "lucide-react";
-import { battingStyles, bowlingStyles, playerRoles } from "@/lib/constants";
-import { normalizePhoneNumber } from "@/lib/auction-utils";
-import { compressImageFile, fileSizeLabel } from "@/lib/image-client";
-import { toast } from "@/components/ui/AppToaster";
+import { useRef, useState } from 'react';
+import { ImagePlus, Send, X } from 'lucide-react';
+
+import { battingStyles, bowlingStyles, playerRoles } from '@/lib/constants';
+import { normalizePhoneNumber } from '@/lib/auction-utils';
+import { toast } from '@/components/ui/AppToaster';
+
+const initialForm = {
+  name: '',
+  phone: '',
+  role: 'Batter',
+  batting_style: 'Right Hand',
+  bowling_style: 'None',
+};
 
 export function PlayerRegistrationForm() {
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [form, setForm] = useState({
-    name: "",
-    phone: "",
-    role: "Batter",
-    batting_style: "Right Hand",
-    bowling_style: "None",
-  });
+  const [form, setForm] = useState(initialForm);
   const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const previewUrl = useMemo(() => {
-    if (!file) return null;
-    return URL.createObjectURL(file);
-  }, [file]);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   function update(key: string, value: string) {
     setForm((old) => ({ ...old, [key]: value }));
   }
 
-  async function choosePhoto(selected: File | null) {
-    if (!selected) {
-      setFile(null);
-      return;
+  function onFileChange(nextFile: File | null) {
+    setFile(nextFile);
+
+    if (preview) {
+      URL.revokeObjectURL(preview);
     }
 
-    try {
-      const compressed = await compressImageFile(selected, { maxDimension: 900, maxSizeBytes: 900 * 1024, quality: 0.78 });
-      setFile(compressed);
-      if (compressed.size < selected.size) {
-        toast(`Photo optimized: ${fileSizeLabel(compressed.size)}`);
-      }
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Could not use this photo.");
-      setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+    if (nextFile) {
+      setPreview(URL.createObjectURL(nextFile));
+    } else {
+      setPreview(null);
+    }
+  }
+
+  function removePhoto() {
+    onFileChange(null);
+    if (fileRef.current) {
+      fileRef.current.value = '';
     }
   }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (loading) return;
+
+    if (!file) {
+      toast('Player photo is required. Please upload a photo from gallery.');
+      fileRef.current?.click();
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast('Please upload an image file only.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast('Photo is too large. Upload an image under 5 MB.');
+      return;
+    }
 
     setLoading(true);
+
     try {
       const body = new FormData();
-      body.append("name", form.name.trim());
-      body.append("phone", normalizePhoneNumber(form.phone));
-      body.append("role", form.role);
-      body.append("batting_style", form.batting_style);
-      body.append("bowling_style", form.bowling_style);
-      if (file) body.append("photo", file);
+      body.set('name', form.name.trim());
+      body.set('phone', normalizePhoneNumber(form.phone));
+      body.set('role', form.role);
+      body.set('batting_style', form.batting_style);
+      body.set('bowling_style', form.bowling_style);
+      body.set('photo', file);
 
-      const res = await fetch("/api/players/register", {
-        method: "POST",
+      const res = await fetch('/api/players/register', {
+        method: 'POST',
         body,
       });
 
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Registration failed");
 
-      toast("Player registered. Waiting for admin approval.");
-      setForm({
-        name: "",
-        phone: "",
-        role: "Batter",
-        batting_style: "Right Hand",
-        bowling_style: "None",
-      });
-      setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (!res.ok) throw new Error(json.error || 'Registration failed');
+
+      toast('Player registered. Waiting for admin approval.');
+      setForm(initialForm);
+      removePhoto();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Registration failed");
+      toast(err instanceof Error ? err.message : 'Registration failed');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <form onSubmit={onSubmit} className="mx-auto max-w-3xl rounded-[2rem] border border-white/10 bg-white/[0.05] p-6 shadow-2xl shadow-emerald-500/10 backdrop-blur md:p-8">
-      <div className="mb-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-300">APL Registration</p>
-        <h2 className="mt-3 text-3xl font-black text-white md:text-4xl">Player Registration</h2>
-        <p className="mt-3 text-sm text-white/60">Register your player details and upload a photo from your gallery.</p>
+    <form onSubmit={onSubmit} className="glass-card mx-auto max-w-2xl rounded-[2rem] p-6 sm:p-8">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="rounded-2xl bg-apl-gold/15 p-3 text-apl-gold">
+          <ImagePlus className="h-6 w-6" />
+        </div>
+
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-apl-gold">Join the auction</p>
+          <h1 className="text-2xl font-black">Player Registration</h1>
+          <p className="text-sm text-white/60">Photo upload is required for every player.</p>
+        </div>
       </div>
 
-      <div className="grid gap-5">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Player Name">
           <input
+            className="input"
             value={form.name}
-            onChange={(e) => update("name", e.target.value)}
+            onChange={(e) => update('name', e.target.value)}
             placeholder="Kabir"
             required
-            className="w-full rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-4 text-base font-semibold text-white outline-none transition placeholder:text-white/25 focus:border-emerald-300/70 focus:bg-white/[0.09]"
           />
         </Field>
 
         <Field label="Phone Number">
           <input
+            className="input"
             value={form.phone}
-            onChange={(e) => update("phone", e.target.value)}
+            onChange={(e) => update('phone', e.target.value)}
             inputMode="tel"
             placeholder="9999999999"
             required
-            className="w-full rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-4 text-base font-semibold text-white outline-none transition placeholder:text-white/25 focus:border-emerald-300/70 focus:bg-white/[0.09]"
           />
         </Field>
 
         <Field label="Role">
-          <select
-            value={form.role}
-            onChange={(e) => update("role", e.target.value)}
-            className="w-full rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-4 text-base font-semibold text-white outline-none transition focus:border-emerald-300/70 focus:bg-white/[0.09]"
-          >
+          <select className="input" value={form.role} onChange={(e) => update('role', e.target.value)}>
             {playerRoles.map((role) => (
-              <option key={role} value={role} className="bg-slate-950 text-white">
-                {role}
-              </option>
+              <option key={role}>{role}</option>
             ))}
           </select>
         </Field>
 
         <Field label="Batting Style">
-          <select
-            value={form.batting_style}
-            onChange={(e) => update("batting_style", e.target.value)}
-            className="w-full rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-4 text-base font-semibold text-white outline-none transition focus:border-emerald-300/70 focus:bg-white/[0.09]"
-          >
+          <select className="input" value={form.batting_style} onChange={(e) => update('batting_style', e.target.value)}>
             {battingStyles.map((style) => (
-              <option key={style} value={style} className="bg-slate-950 text-white">
-                {style}
-              </option>
+              <option key={style}>{style}</option>
             ))}
           </select>
         </Field>
 
         <Field label="Bowling Style">
-          <select
-            value={form.bowling_style}
-            onChange={(e) => update("bowling_style", e.target.value)}
-            className="w-full rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-4 text-base font-semibold text-white outline-none transition focus:border-emerald-300/70 focus:bg-white/[0.09]"
-          >
+          <select className="input" value={form.bowling_style} onChange={(e) => update('bowling_style', e.target.value)}>
             {bowlingStyles.map((style) => (
-              <option key={style} value={style} className="bg-slate-950 text-white">
-                {style}
-              </option>
+              <option key={style}>{style}</option>
             ))}
           </select>
         </Field>
 
-        <Field label="Photo">
-          <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.04] p-4">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => void choosePhoto(e.target.files?.[0] || null)}
-            />
+        <Field label="Photo *">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+            {preview ? (
+              <div className="flex items-center gap-4">
+                <img
+                  src={preview}
+                  alt="Selected player"
+                  className="h-24 w-24 rounded-2xl border border-white/10 object-cover"
+                />
 
-            {previewUrl ? (
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={previewUrl} alt="Selected player" className="h-28 w-28 rounded-2xl object-cover ring-1 ring-white/10" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-white">{file?.name}</p>
-                  <p className="mt-1 text-xs text-white/50">Gallery photo selected • {file ? fileSizeLabel(file.size) : ""}</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="rounded-full border border-white/10 bg-white/[0.07] px-4 py-2 text-xs font-bold text-white transition hover:bg-white/[0.12]"
-                    >
-                      Change Photo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFile(null);
-                        if (fileInputRef.current) fileInputRef.current.value = "";
-                      }}
-                      className="inline-flex items-center gap-2 rounded-full border border-red-400/20 bg-red-500/10 px-4 py-2 text-xs font-bold text-red-200 transition hover:bg-red-500/20"
-                    >
-                      <X className="h-3.5 w-3.5" /> Remove
-                    </button>
-                  </div>
+                  <p className="truncate font-bold text-white">{file?.name}</p>
+                  <p className="mt-1 text-xs text-white/50">Gallery photo selected</p>
+                  <button
+                    type="button"
+                    onClick={removePhoto}
+                    className="mt-3 inline-flex items-center gap-2 rounded-full border border-red-300/25 bg-red-400/10 px-4 py-2 text-sm font-black text-red-200"
+                  >
+                    <X size={16} /> Remove
+                  </button>
                 </div>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex w-full flex-col items-center justify-center rounded-2xl bg-black/20 px-5 py-8 text-center transition hover:bg-black/30"
-              >
-                <ImagePlus className="h-9 w-9 text-emerald-300" />
-                <span className="mt-3 text-base font-extrabold text-white">Choose Photo From Gallery</span>
-                <span className="mt-1 text-xs text-white/45">JPG, PNG, WEBP or GIF. Large photos are optimized before upload.</span>
-              </button>
+              <label className="flex cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-apl-gold/35 bg-apl-gold/10 px-4 py-8 text-center font-black text-apl-gold">
+                <ImagePlus size={20} />
+                Upload required player photo
+                <input
+                  ref={fileRef}
+                  className="hidden"
+                  type="file"
+                  accept="image/*"
+                  required
+                  onChange={(e) => onFileChange(e.target.files?.[0] || null)}
+                />
+              </label>
             )}
+
+            {preview && (
+              <input
+                ref={fileRef}
+                className="hidden"
+                type="file"
+                accept="image/*"
+                required
+                onChange={(e) => onFileChange(e.target.files?.[0] || null)}
+              />
+            )}
+
+            <p className="mt-3 text-xs text-white/50">Old photos from your gallery are allowed. Max size: 5 MB.</p>
           </div>
         </Field>
       </div>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="mt-8 inline-flex w-full items-center justify-center gap-3 rounded-full bg-gradient-to-r from-yellow-300 via-lime-300 to-emerald-400 px-6 py-4 text-base font-black text-slate-950 shadow-xl shadow-emerald-500/20 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <Send className="h-5 w-5" />
-        {loading ? "Submitting..." : "Submit Player Registration"}
+      <button disabled={loading} className="btn-primary mt-6 w-full disabled:cursor-not-allowed disabled:opacity-60">
+        <Send className="h-4 w-4" />
+        {loading ? 'Submitting...' : 'Submit Player Registration'}
       </button>
 
-      <p className="mt-5 text-center text-sm text-white/45">Base price is set by admin only after approval.</p>
+      <p className="mt-4 text-center text-xs text-white/50">Base price is set by admin only after approval.</p>
     </form>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-extrabold text-white/75">{label}</span>
+    <label className="block text-sm font-bold text-white/80">
+      <span className="mb-2 block">{label}</span>
       {children}
     </label>
   );

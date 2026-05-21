@@ -21,7 +21,6 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
   const [bids, setBids] = useState<Bid[]>([]);
   const [events, setEvents] = useState<AuctionEvent[]>([]);
   const [loading, setLoading] = useState(true);
-
   const inFlightRef = useRef(false);
   const mountedRef = useRef(false);
 
@@ -65,16 +64,31 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
       setTeams(enrichedTeams);
       setEvents((eventData || []) as AuctionEvent[]);
 
-      const bidQuery = supabase.from('bids').select('*').order('created_at', { ascending: false }).limit(10);
+      if (safeAuction?.current_player_id) {
+        const selected = safePlayers.find((player) => player.id === safeAuction.current_player_id) || null;
+        setCurrentPlayer(selected);
 
-      const { data: bidData } = safeAuction?.current_player_id
-        ? await bidQuery.eq('player_id', safeAuction.current_player_id)
-        : await bidQuery;
+        const { data: bidData } = await supabase
+          .from('bids')
+          .select('*')
+          .eq('player_id', safeAuction.current_player_id)
+          .order('created_at', { ascending: false })
+          .limit(10);
 
-      if (!mountedRef.current) return;
+        if (!mountedRef.current) return;
+        setBids((bidData || []) as Bid[]);
+      } else {
+        setCurrentPlayer(null);
 
-      setCurrentPlayer(safeAuction?.current_player_id ? safePlayers.find((player) => player.id === safeAuction.current_player_id) || null : null);
-      setBids((bidData || []) as Bid[]);
+        const { data: bidData } = await supabase
+          .from('bids')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (!mountedRef.current) return;
+        setBids((bidData || []) as Bid[]);
+      }
     } finally {
       inFlightRef.current = false;
       if (mountedRef.current) setLoading(false);
@@ -88,7 +102,7 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
     const softRefresh = () => void loadAuction({ silent: true });
 
     const channel = supabase
-      .channel('apl-live-auction-v5-ui-sync')
+      .channel('apl-live-auction-v4-fast-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'auction' }, softRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, softRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, softRefresh)

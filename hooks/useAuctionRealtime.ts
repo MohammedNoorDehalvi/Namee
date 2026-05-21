@@ -1,10 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import type { Auction, AuctionEvent, Bid, Captain, Player, Team } from '@/lib/types';
 
-export function useAuctionRealtime() {
+type LoadOptions = {
+  silent?: boolean;
+};
+
+type RealtimeOptions = {
+  pollMs?: number;
+};
+
+export function useAuctionRealtime(options: RealtimeOptions = {}) {
+  const pollMs = Math.max(500, options.pollMs ?? 900);
   const [auction, setAuction] = useState<Auction | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -12,85 +21,113 @@ export function useAuctionRealtime() {
   const [bids, setBids] = useState<Bid[]>([]);
   const [events, setEvents] = useState<AuctionEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const inFlightRef = useRef(false);
+  const mountedRef = useRef(false);
 
-  const loadAuction = useCallback(async () => {
-    setLoading(true);
+  const loadAuction = useCallback(async ({ silent = false }: LoadOptions = {}) => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
 
-    const [{ data: auctionData }, { data: playerData }, { data: teamData }, { data: captainData }, { data: eventData }] =
-      await Promise.all([
-        supabase.from('auction').select('*').eq('id', 1).maybeSingle(),
-        supabase.from('players').select('*').eq('approval_status', 'Approved').order('created_at', { ascending: false }),
-        supabase.from('teams').select('*').order('team_name', { ascending: true }),
-        supabase.from('captains').select('id,captain_name,team_name,team_id,photo_url,budget,remaining_budget,created_at'),
-        supabase.from('auction_events').select('*').order('created_at', { ascending: false }).limit(20),
-      ]);
+    if (!silent) setLoading(true);
 
-    const safeAuction = auctionData as Auction | null;
-    const safePlayers = (playerData || []) as Player[];
-    const safeCaptains = (captainData || []) as Captain[];
+    try {
+      const [{ data: auctionData }, { data: playerData }, { data: teamData }, { data: captainData }, { data: eventData }] =
+        await Promise.all([
+          supabase.from('auction').select('*').eq('id', 1).maybeSingle(),
+          supabase.from('players').select('*').eq('approval_status', 'Approved').order('created_at', { ascending: false }),
+          supabase.from('teams').select('*').order('team_name', { ascending: true }),
+          supabase.from('captains').select('id,captain_name,team_name,team_id,photo_url,budget,remaining_budget,created_at'),
+          supabase.from('auction_events').select('*').order('created_at', { ascending: false }).limit(20),
+        ]);
 
-    const enrichedTeams = ((teamData || []) as Team[]).map((team) => {
-      const captain =
-        safeCaptains.find((item) => item.id === team.captain_id) ||
-        safeCaptains.find((item) => item.team_id === team.id) ||
-        safeCaptains.find((item) => item.team_name === team.team_name);
+      if (!mountedRef.current) return;
 
-      return {
-        ...team,
-        captain_photo_url: captain?.photo_url || team.captain_photo_url || null,
-        captain_name: team.captain_name || captain?.captain_name || 'Captain',
-      };
-    });
+      const safeAuction = auctionData as Auction | null;
+      const safePlayers = (playerData || []) as Player[];
+      const safeCaptains = (captainData || []) as Captain[];
 
-    setAuction(safeAuction);
-    setPlayers(safePlayers);
-    setTeams(enrichedTeams);
-    setEvents((eventData || []) as AuctionEvent[]);
+      const enrichedTeams = ((teamData || []) as Team[]).map((team) => {
+        const captain =
+          safeCaptains.find((item) => item.id === team.captain_id) ||
+          safeCaptains.find((item) => item.team_id === team.id) ||
+          safeCaptains.find((item) => item.team_name === team.team_name);
 
-    if (safeAuction?.current_player_id) {
-      const selected = safePlayers.find((player) => player.id === safeAuction.current_player_id) || null;
-      setCurrentPlayer(selected);
+        return {
+          ...team,
+          captain_photo_url: captain?.photo_url || team.captain_photo_url || null,
+          captain_name: team.captain_name || captain?.captain_name || 'Captain',
+        };
+      });
 
-      const { data: bidData } = await supabase
-        .from('bids')
-        .select('*')
-        .eq('player_id', safeAuction.current_player_id)
-        .order('created_at', { ascending: false })
-        .limit(10);
+      setAuction(safeAuction);
+      setPlayers(safePlayers);
+      setTeams(enrichedTeams);
+      setEvents((eventData || []) as AuctionEvent[]);
 
-      setBids((bidData || []) as Bid[]);
-    } else {
-      setCurrentPlayer(null);
+      if (safeAuction?.current_player_id) {
+        const selected = safePlayers.find((player) => player.id === safeAuction.current_player_id) || null;
+        setCurrentPlayer(selected);
 
-      const { data: bidData } = await supabase
-        .from('bids')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
+        const { data: bidData } = await supabase
+          .from('bids')
+          .select('*')
+          .eq('player_id', safeAuction.current_player_id)
+          .order('created_at', { ascending: false })
+          .limit(10);
 
-      setBids((bidData || []) as Bid[]);
+        if (!mountedRef.current) return;
+        setBids((bidData || []) as Bid[]);
+      } else {
+        setCurrentPlayer(null);
+
+        const { data: bidData } = await supabase
+          .from('bids')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (!mountedRef.current) return;
+        setBids((bidData || []) as Bid[]);
+      }
+    } finally {
+      inFlightRef.current = false;
+      if (mountedRef.current) setLoading(false);
     }
-
-    setLoading(false);
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     void loadAuction();
 
+    const softRefresh = () => void loadAuction({ silent: true });
+
     const channel = supabase
-      .channel('apl-live-auction-v3-images')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'auction' }, () => void loadAuction())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => void loadAuction())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, () => void loadAuction())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => void loadAuction())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'captains' }, () => void loadAuction())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'auction_events' }, () => void loadAuction())
+      .channel('apl-live-auction-v4-fast-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'auction' }, softRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, softRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, softRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, softRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'captains' }, softRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'auction_events' }, softRefresh)
       .subscribe();
 
+    const intervalId = window.setInterval(softRefresh, pollMs);
+    const focusRefresh = () => softRefresh();
+    const visibilityRefresh = () => {
+      if (document.visibilityState === 'visible') softRefresh();
+    };
+
+    window.addEventListener('focus', focusRefresh);
+    document.addEventListener('visibilitychange', visibilityRefresh);
+
     return () => {
+      mountedRef.current = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', focusRefresh);
+      document.removeEventListener('visibilitychange', visibilityRefresh);
       void supabase.removeChannel(channel);
     };
-  }, [loadAuction]);
+  }, [loadAuction, pollMs]);
 
   const currentBid = useMemo(() => {
     return Math.max(

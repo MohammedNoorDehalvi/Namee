@@ -12,7 +12,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 export function CaptainDashboardClient() {
   const { session } = useSession();
-  const { auction, currentPlayer, currentBid, bids, teams, players, loading, refresh } = useAuctionRealtime();
+  const { auction, currentPlayer, currentBid, bids, teams, players, loading, refresh } = useAuctionRealtime({ pollMs: 700 });
 
   const [captain, setCaptain] = useState<Captain | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
@@ -53,8 +53,22 @@ export function CaptainDashboardClient() {
 
   useEffect(() => {
     void loadMine();
-    const id = window.setInterval(() => void loadMine(), 5000);
-    return () => window.clearInterval(id);
+
+    const softRefresh = () => void loadMine();
+    const id = window.setInterval(softRefresh, 900);
+    const focusRefresh = () => softRefresh();
+    const visibilityRefresh = () => {
+      if (document.visibilityState === 'visible') softRefresh();
+    };
+
+    window.addEventListener('focus', focusRefresh);
+    document.addEventListener('visibilitychange', visibilityRefresh);
+
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('focus', focusRefresh);
+      document.removeEventListener('visibilitychange', visibilityRefresh);
+    };
   }, []);
 
   async function bid() {
@@ -78,7 +92,7 @@ export function CaptainDashboardClient() {
     if (!res.ok) return toast(json.error || 'Bid failed');
 
     toast(`Bid placed: ${formatMoney(json.bid_amount)}`);
-    void refresh();
+    void refresh({ silent: true });
     void loadMine();
   }
 

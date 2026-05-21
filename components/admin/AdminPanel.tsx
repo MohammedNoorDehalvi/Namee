@@ -106,8 +106,8 @@ export function AdminPanel() {
     return json as T;
   }
 
-  async function load() {
-    setLoading(true);
+  async function load(silent = false) {
+    if (!silent) setLoading(true);
     try {
       const json = await api<Overview>('/api/admin/overview');
       setData(json);
@@ -128,14 +128,30 @@ export function AdminPanel() {
       }
       if (!manual.team_id && json.teams?.length) setManual((old) => ({ ...old, team_id: json.teams[0].id }));
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed to load admin data');
+      if (!silent) toast(err instanceof Error ? err.message : 'Failed to load admin data');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
   useEffect(() => {
     void load();
+
+    const softRefresh = () => void load(true);
+    const intervalId = window.setInterval(softRefresh, 900);
+    const focusRefresh = () => softRefresh();
+    const visibilityRefresh = () => {
+      if (document.visibilityState === 'visible') softRefresh();
+    };
+
+    window.addEventListener('focus', focusRefresh);
+    document.addEventListener('visibilitychange', visibilityRefresh);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', focusRefresh);
+      document.removeEventListener('visibilitychange', visibilityRefresh);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -144,7 +160,7 @@ export function AdminPanel() {
     try {
       await fn();
       toast(label);
-      await load();
+      await load(true);
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Action failed');
     } finally {

@@ -1,28 +1,55 @@
 "use client";
 
-import { motion } from 'framer-motion';
-import { Gavel, Radio, Shield, Users } from 'lucide-react';
-import { SectionHeading } from '@/components/ui/SectionHeading';
+import { Gavel, Radio, Shield, Sparkles, Users } from 'lucide-react';
 
 const items = [
-  { icon: <Users />, title: 'Players Register', body: 'Players submit their phone, role, batting style, bowling style, and photo. Admin approves before auction.' },
-  { icon: <Shield />, title: 'Admin Controls', body: 'Admin approves players, starts auction, marks sold or unsold, moves next player, and manages captains.' },
-  { icon: <Gavel />, title: 'Captains Bid', body: 'Captains bid only after login and only when the auction is live. Budget protection is built in.' },
-  { icon: <Radio />, title: 'Realtime Auction', body: 'Everyone can watch the auction screen. Supabase realtime keeps current player, bid, and status updated.' }
+  {
+    icon: <Users size={22} />,
+    title: 'Players Register',
+    body: 'Players submit role, style, phone and a required gallery photo. Admin approves them before auction.',
+  },
+  {
+    icon: <Shield size={22} />,
+    title: 'Admin Controls',
+    body: 'Admin creates teams, approves players, starts auction, marks sold or unsold, and fixes teams if needed.',
+  },
+  {
+    icon: <Gavel size={22} />,
+    title: 'Captains Bid',
+    body: 'Captains bid with protected budgets, team limits, live highest bidder, and clean mobile controls.',
+  },
+  {
+    icon: <Radio size={22} />,
+    title: 'Realtime Auction',
+    body: 'Public users, captains and admin see live player, bid history, logos, captain photos and reports.',
+  },
 ];
 
 export function ScrollShowcase() {
   return (
-    <section className="px-4 py-20 sm:px-6">
-      <SectionHeading eyebrow="3D Scroll Experience" title="Futuristic IPL-style auction flow" subtitle="Glassmorphism cards, premium dark stadium background, golden highlights, green winning states, and hover-based 3D card motion." />
-      <div className="mx-auto mt-12 grid max-w-7xl gap-5 md:grid-cols-2 lg:grid-cols-4">
-        {items.map((item, i) => (
-          <motion.article key={item.title} className="scroll-3d-card glass-card rounded-[2rem] p-6" initial={{ opacity: 0, y: 50, rotateX: 12 }} whileInView={{ opacity: 1, y: 0, rotateX: 0 }} viewport={{ once: true, amount: .3 }} transition={{ duration: .55, delay: i * .08 }}>
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-apl-gold/15 text-apl-gold">{item.icon}</div>
-            <h3 className="mt-5 text-xl font-black">{item.title}</h3>
-            <p className="mt-3 text-sm leading-6 text-white/60">{item.body}</p>
-          </motion.article>
-        ))}
+    <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {items.map((item) => (
+        <article key={item.title} className="premium-card premium-hover rounded-[1.7rem] p-5">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl border border-yellow-300/25 bg-yellow-300/10 text-yellow-300">
+            {item.icon}
+          </div>
+          <h3 className="mt-5 text-xl font-black text-white">{item.title}</h3>
+          <p className="mt-2 text-sm leading-6 text-white/58">{item.body}</p>
+        </article>
+      ))}
+
+      <div className="sm:col-span-2 lg:col-span-4">
+        <div className="glass-card flex flex-col gap-4 rounded-[1.7rem] p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.22em] text-green-300">
+              <Sparkles size={17} /> Premium APL Experience
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-white">Dark futuristic cricket auction UI made for mobile and live screens.</h2>
+          </div>
+          <p className="max-w-xl text-sm leading-6 text-white/55">
+            Lightweight Tailwind-only interface, lazy loaded images, and fast Supabase sync for the Render free instance.
+          </p>
+        </div>
       </div>
     </section>
   );

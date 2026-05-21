@@ -11,8 +11,16 @@ export default function AuctionPage({ searchParams }: AuctionPageProps) {
   const isCaptainMode = searchParams?.captain === '1';
 
   if (isCaptainMode) {
-    return <CaptainDashboardClient />;
+    return (
+      <main className="section-shell py-8 sm:py-10">
+        <CaptainDashboardClient />
+      </main>
+    );
   }
 
-  return <LiveAuction mode="public" />;
+  return (
+    <main className="section-shell py-8 sm:py-10">
+      <LiveAuction mode="public" />
+    </main>
+  );
 }

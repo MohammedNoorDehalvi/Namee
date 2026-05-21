@@ -12,30 +12,83 @@ const links = [
   ['Auction', '/auction'],
   ['Teams', '/teams'],
   ['Captain', '/captain-dashboard'],
-  ['Admin', '/admin-dashboard']
-];
+  ['Admin', '/admin-dashboard'],
+] as const;
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
   const { session } = useSession();
+
+  function logout() {
+    clearSession();
+    setOpen(false);
+  }
+
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-apl-dark/75 backdrop-blur-xl">
-      <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-        <Link href="/" className="flex items-center gap-2 font-black tracking-tight">
-          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-apl-gold to-apl-neon text-apl-dark shadow-glow"><Trophy size={20} /></span>
-          <span className="text-lg">APL <span className="text-apl-gold">Auction</span></span>
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#040806]/80 backdrop-blur-2xl">
+      <nav className="section-shell flex min-h-[72px] items-center justify-between gap-4">
+        <Link href="/" className="flex min-w-0 items-center gap-3">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-yellow-300/30 bg-yellow-300/10 text-yellow-300 shadow-lg shadow-yellow-500/10">
+            <Trophy size={22} />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-lg font-black tracking-tight text-white">APL Auction</span>
+            <span className="block truncate text-xs font-bold uppercase tracking-[0.22em] text-green-300/80">Ashoka Premier League</span>
+          </span>
         </Link>
-        <div className="hidden items-center gap-2 lg:flex">
-          {links.map(([label, href]) => <Link key={href} href={href} className="rounded-full px-3 py-2 text-sm font-semibold text-white/75 hover:bg-white/10 hover:text-white">{label}</Link>)}
-          {session ? <button onClick={clearSession} className="btn-ghost !py-2 text-sm">Logout {session.name}</button> : <Link href="/captain-login" className="btn-primary !py-2 text-sm">Captain Login</Link>}
+
+        <div className="hidden items-center gap-1 lg:flex">
+          {links.map(([label, href]) => (
+            <Link key={href} href={href} className="rounded-full px-4 py-2 text-sm font-bold text-white/70 transition hover:bg-white/10 hover:text-white">
+              {label}
+            </Link>
+          ))}
         </div>
-        <button className="lg:hidden" onClick={() => setOpen(!open)} aria-label="Open menu">{open ? <X /> : <Menu />}</button>
+
+        <div className="hidden items-center gap-2 sm:flex">
+          {session ? (
+            <button onClick={logout} className="btn-ghost max-w-[220px] truncate">
+              Logout {session.name}
+            </button>
+          ) : (
+            <Link href="/captain-login" className="btn-primary">
+              Captain Login
+            </Link>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-white lg:hidden"
+          aria-label="Open menu"
+        >
+          {open ? <X size={20} /> : <Menu size={20} />}
+        </button>
       </nav>
+
       {open && (
-        <div className="border-t border-white/10 bg-apl-dark/95 px-4 py-3 lg:hidden">
-          <div className="grid gap-2">
-            {links.map(([label, href]) => <Link key={href} href={href} onClick={() => setOpen(false)} className="rounded-2xl px-4 py-3 font-semibold hover:bg-white/10">{label}</Link>)}
-            {session ? <button onClick={() => { clearSession(); setOpen(false); }} className="btn-ghost">Logout {session.name}</button> : <Link onClick={() => setOpen(false)} href="/captain-login" className="btn-primary">Captain Login</Link>}
+        <div className="section-shell pb-4 lg:hidden">
+          <div className="glass-card grid gap-2 rounded-[1.5rem] p-3">
+            {links.map(([label, href]) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setOpen(false)}
+                className="rounded-2xl px-4 py-3 font-bold text-white/80 hover:bg-white/10 hover:text-white"
+              >
+                {label}
+              </Link>
+            ))}
+            {session ? (
+              <button onClick={logout} className="btn-ghost w-full">
+                Logout {session.name}
+              </button>
+            ) : (
+              <Link onClick={() => setOpen(false)} href="/captain-login" className="btn-primary w-full">
+                Captain Login
+              </Link>
+            )}
           </div>
         </div>
       )}

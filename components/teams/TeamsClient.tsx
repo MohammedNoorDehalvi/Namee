@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
 import { useEffect, useState } from 'react';
 import { Shield } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
-import type { Captain, Player, Team } from '@/lib/types';
+import type { Captain, Player, Season, Team } from '@/lib/types';
 import { formatMoney, initials } from '@/lib/format';
 import { EmptyState } from '@/components/ui/EmptyState';
 
@@ -12,6 +12,18 @@ type TeamGroup = Team & {
   captain_photo_url?: string | null;
 };
 
+async function getActiveSeason() {
+  const { data } = await supabase
+    .from('seasons')
+    .select('*')
+    .eq('status', 'active')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return data as Season | null;
+}
+
 export function TeamsClient() {
   const [teams, setTeams] = useState<TeamGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,10 +31,21 @@ export function TeamsClient() {
   async function load() {
     setLoading(true);
 
+    const season = await getActiveSeason();
+
+    if (!season) {
+      setTeams([]);
+      setLoading(false);
+      return;
+    }
+
     const [{ data: teamData }, { data: playerData }, { data: captainData }] = await Promise.all([
-      supabase.from('teams').select('*').order('team_name'),
-      supabase.from('players').select('*').eq('status', 'Sold'),
-      supabase.from('captains').select('id,captain_name,team_name,team_id,photo_url,budget,remaining_budget,created_at'),
+      supabase.from('teams').select('*').eq('season_id', season.id).order('team_name'),
+      supabase.from('players').select('*').eq('season_id', season.id).eq('status', 'Sold'),
+      supabase
+        .from('captains')
+        .select('id,season_id,captain_name,team_name,team_id,photo_url,budget,remaining_budget,created_at')
+        .eq('season_id', season.id),
     ]);
 
     const players = (playerData || []) as Player[];
@@ -50,7 +73,8 @@ export function TeamsClient() {
     void load();
 
     const channel = supabase
-      .channel('apl-teams-images')
+      .channel('apl-teams-season-images')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'seasons' }, () => void load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => void load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => void load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'captains' }, () => void load())
@@ -66,7 +90,7 @@ export function TeamsClient() {
   }
 
   if (teams.length === 0) {
-    return <EmptyState title="No teams yet" description="Teams will appear here after admin adds them." />;
+    return <EmptyState title="No teams yet" description="Teams will appear here after admin adds them in the current season." />;
   }
 
   return (

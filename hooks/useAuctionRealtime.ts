@@ -1,19 +1,27 @@
-"use client";
+'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import type { Auction, AuctionEvent, Bid, Captain, Player, Team } from '@/lib/types';
+import type { Auction, AuctionEvent, Bid, Captain, Player, Season, Team } from '@/lib/types';
 
-type LoadOptions = {
-  silent?: boolean;
-};
+type LoadOptions = { silent?: boolean };
+type RealtimeOptions = { pollMs?: number };
 
-type RealtimeOptions = {
-  pollMs?: number;
-};
+async function getActiveSeasonClient() {
+  const { data } = await supabase
+    .from('seasons')
+    .select('*')
+    .eq('status', 'active')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return data as Season | null;
+}
 
 export function useAuctionRealtime(options: RealtimeOptions = {}) {
   const pollMs = Math.max(500, options.pollMs ?? 900);
+  const [season, setSeason] = useState<Season | null>(null);
   const [auction, setAuction] = useState<Auction | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -26,18 +34,47 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
 
   const loadAuction = useCallback(async ({ silent = false }: LoadOptions = {}) => {
     if (inFlightRef.current) return;
-    inFlightRef.current = true;
 
+    inFlightRef.current = true;
     if (!silent) setLoading(true);
 
     try {
+      const activeSeason = await getActiveSeasonClient();
+
+      if (!mountedRef.current) return;
+
+      setSeason(activeSeason);
+
+      if (!activeSeason) {
+        setAuction(null);
+        setCurrentPlayer(null);
+        setPlayers([]);
+        setTeams([]);
+        setBids([]);
+        setEvents([]);
+        return;
+      }
+
       const [{ data: auctionData }, { data: playerData }, { data: teamData }, { data: captainData }, { data: eventData }] =
         await Promise.all([
           supabase.from('auction').select('*').eq('id', 1).maybeSingle(),
-          supabase.from('players').select('*').eq('approval_status', 'Approved').order('created_at', { ascending: false }),
-          supabase.from('teams').select('*').order('team_name', { ascending: true }),
-          supabase.from('captains').select('id,captain_name,team_name,team_id,photo_url,budget,remaining_budget,created_at'),
-          supabase.from('auction_events').select('*').order('created_at', { ascending: false }).limit(20),
+          supabase
+            .from('players')
+            .select('*')
+            .eq('season_id', activeSeason.id)
+            .eq('approval_status', 'Approved')
+            .order('created_at', { ascending: false }),
+          supabase.from('teams').select('*').eq('season_id', activeSeason.id).order('team_name', { ascending: true }),
+          supabase
+            .from('captains')
+            .select('id,season_id,captain_name,team_name,team_id,photo_url,budget,remaining_budget,created_at')
+            .eq('season_id', activeSeason.id),
+          supabase
+            .from('auction_events')
+            .select('*')
+            .eq('season_id', activeSeason.id)
+            .order('created_at', { ascending: false })
+            .limit(20),
         ]);
 
       if (!mountedRef.current) return;
@@ -71,6 +108,7 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
         const { data: bidData } = await supabase
           .from('bids')
           .select('*')
+          .eq('season_id', activeSeason.id)
           .eq('player_id', safeAuction.current_player_id)
           .order('created_at', { ascending: false })
           .limit(10);
@@ -83,6 +121,7 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
         const { data: bidData } = await supabase
           .from('bids')
           .select('*')
+          .eq('season_id', activeSeason.id)
           .order('created_at', { ascending: false })
           .limit(10);
 
@@ -102,7 +141,8 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
     const softRefresh = () => void loadAuction({ silent: true });
 
     const channel = supabase
-      .channel('apl-live-auction-v4-fast-sync')
+      .channel('apl-live-auction-v5-season-bid-lock')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'seasons' }, softRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'auction' }, softRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, softRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, softRefresh)
@@ -137,5 +177,5 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
     );
   }, [auction, currentPlayer]);
 
-  return { auction, currentPlayer, players, teams, bids, events, loading, currentBid, refresh: loadAuction };
+  return { season, auction, currentPlayer, players, teams, bids, events, loading, currentBid, refresh: loadAuction };
 }

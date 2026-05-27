@@ -5,6 +5,8 @@ export type PlayerStatus = 'Available' | 'Sold' | 'Unsold';
 export type PlayerAuctionStatus = 'PENDING' | 'CURRENT' | 'SOLD' | 'UNSOLD';
 export type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected';
 export type AuctionStatus = 'NOT_STARTED' | 'LIVE' | 'PAUSED' | 'ENDED';
+export type SeasonStatus = 'active' | 'ended';
+
 export type AuctionEventType =
   | 'BID'
   | 'SOLD'
@@ -14,10 +16,22 @@ export type AuctionEventType =
   | 'ADMIN_ASSIGNED'
   | 'STATUS'
   | 'RESET'
-  | 'UNDO';
+  | 'UNDO'
+  | 'SEASON';
+
+export type Season = {
+  id: string;
+  season_number: number;
+  name: string;
+  status: SeasonStatus;
+  started_at: string;
+  ended_at?: string | null;
+  created_at: string;
+};
 
 export type Player = {
   id: string;
+  season_id?: string | null;
   name: string;
   phone: string;
   normalized_phone?: string | null;
@@ -41,6 +55,7 @@ export type Player = {
 
 export type Captain = {
   id: string;
+  season_id?: string | null;
   captain_name: string;
   team_name: string;
   team_id?: string | null;
@@ -52,6 +67,7 @@ export type Captain = {
 
 export type Team = {
   id: string;
+  season_id?: string | null;
   team_name: string;
   captain_id: string;
   captain_name: string;
@@ -66,6 +82,7 @@ export type Team = {
 
 export type Bid = {
   id: string;
+  season_id?: string | null;
   player_id: string;
   captain_id: string;
   captain_name?: string | null;
@@ -77,6 +94,7 @@ export type Bid = {
 
 export type Auction = {
   id: number;
+  season_id?: string | null;
   current_player_id: string | null;
   auction_status: AuctionStatus;
   highest_bid: number;
@@ -85,6 +103,9 @@ export type Auction = {
   highest_bidder_captain_name?: string | null;
   highest_team_name: string | null;
   manual_picker_hidden?: boolean | null;
+  bid_processing?: boolean | null;
+  bid_lock_started_at?: string | null;
+  bid_lock_player_id?: string | null;
   created_at: string;
   updated_at: string;
   started_at?: string | null;
@@ -93,6 +114,7 @@ export type Auction = {
 
 export type AuctionEvent = {
   id: string;
+  season_id?: string | null;
   event_type: AuctionEventType;
   message: string;
   player_id: string | null;
@@ -111,6 +133,37 @@ export type AuctionSummary = {
   cheapestSoldPlayer: Player | null;
   teamsFull: Team[];
   teamsLessThanFour: Team[];
+};
+
+export type PointRow = {
+  id: string;
+  season_id: string;
+  team_id: string;
+  matches_played: number;
+  wins: number;
+  losses: number;
+  no_result: number;
+  points: number;
+  net_run_rate: number;
+  runs_scored: number;
+  overs_faced: number;
+  runs_conceded: number;
+  overs_bowled: number;
+  created_at: string;
+};
+
+export type MatchRow = {
+  id: string;
+  season_id: string;
+  team_a_id: string | null;
+  team_b_id: string | null;
+  venue: string | null;
+  match_date: string | null;
+  status: 'upcoming' | 'live' | 'completed' | string;
+  winner_team_id?: string | null;
+  toss_winner_id?: string | null;
+  created_by_ai?: boolean | null;
+  created_at: string;
 };
 
 export type AppSession = {

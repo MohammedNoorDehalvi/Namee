@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireAdminRequest, createAuctionEvent } from '@/lib/auction-server';
+
+import { createAuctionEvent, requireAdminRequest } from '@/lib/auction-server';
 import { getActiveSeason, seasonName } from '@/lib/season-server';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+  Pragma: 'no-cache',
+  Expires: '0',
+};
 
 const schema = z.object({
   season_number: z.coerce.number().int().min(1).max(100),
@@ -11,17 +20,38 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   const { response, supabase } = requireAdminRequest(request);
+
   if (response || !supabase) return response;
 
   const parsed = schema.safeParse(await request.json().catch(() => ({})));
-  if (!parsed.success) return NextResponse.json({ error: 'Enter a valid season number.' }, { status: 400 });
+
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Enter a valid season number.' }, { status: 400, headers: NO_STORE_HEADERS });
+  }
 
   const active = await getActiveSeason(supabase);
+
   if (active) {
-    return NextResponse.json({ error: `${active.name} is still active. End it before starting a new season.` }, { status: 400 });
+    return NextResponse.json(
+      { error: `${active.name} is still active. End it before starting a new season.` },
+      { status: 400, headers: NO_STORE_HEADERS },
+    );
   }
 
   const name = seasonName(parsed.data.season_number);
+
+  const { data: existingEndedSeason } = await supabase
+    .from('seasons')
+    .select('*')
+    .eq('season_number', parsed.data.season_number)
+    .maybeSingle();
+
+  if (existingEndedSeason?.status === 'ended') {
+    return NextResponse.json(
+      { error: `${name} already exists as an old season. Use a new season number.` },
+      { status: 400, headers: NO_STORE_HEADERS },
+    );
+  }
 
   const { data: season, error } = await supabase
     .from('seasons')
@@ -34,11 +64,12 @@ export async function POST(request: Request) {
     .select('*')
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500, headers: NO_STORE_HEADERS });
+  }
 
-  await supabase
-    .from('auction')
-    .upsert({
+  await supabase.from('auction').upsert(
+    {
       id: 1,
       season_id: season.id,
       auction_status: 'NOT_STARTED',
@@ -55,7 +86,9 @@ export async function POST(request: Request) {
       started_at: null,
       ended_at: null,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
+    },
+    { onConflict: 'id' },
+  );
 
   await createAuctionEvent(supabase, {
     season_id: season.id,
@@ -63,5 +96,5 @@ export async function POST(request: Request) {
     message: `${name} started. Add or import teams, captains, and players.`,
   }).catch(() => undefined);
 
-  return NextResponse.json({ ok: true, season });
+  return NextResponse.json({ ok: true, season }, { headers: NO_STORE_HEADERS });
 }

@@ -15,7 +15,6 @@ type SeasonDetails = {
 };
 
 type ImportType = 'teams' | 'captains' | 'players' | 'all';
-
 type ImportableItem = Team | Captain | Player;
 
 export function SeasonManagementPanel() {
@@ -23,18 +22,22 @@ export function SeasonManagementPanel() {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [seasonNumber, setSeasonNumber] = useState('6');
   const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [sourceSeasonId, setSourceSeasonId] = useState('');
   const [importType, setImportType] = useState<ImportType>('all');
   const [details, setDetails] = useState<SeasonDetails | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [lastSync, setLastSync] = useState<string>('');
 
   const oldSeasons = useMemo(() => seasons.filter((season) => season.status === 'ended'), [seasons]);
+  const hasActiveSeason = Boolean(current?.status === 'active');
 
   async function authFetch(path: string, options: RequestInit = {}) {
     const session = readSession();
 
     const res = await fetch(path, {
       ...options,
+      cache: 'no-store',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session?.token || ''}`,
@@ -52,20 +55,39 @@ export function SeasonManagementPanel() {
   }
 
   async function load() {
-    const [currentRes, seasonsRes] = await Promise.all([
-      fetch('/api/season/current', { cache: 'no-store' }).then((r) => r.json()),
-      fetch('/api/seasons', { cache: 'no-store' }).then((r) => r.json()),
-    ]);
+    setSyncing(true);
 
-    const allSeasons = (seasonsRes.seasons || []) as Season[];
+    try {
+      const stamp = Date.now();
 
-    setCurrent((currentRes.season || null) as Season | null);
-    setSeasons(allSeasons);
+      const [currentRes, seasonsRes] = await Promise.all([
+        fetch(`/api/season/current?t=${stamp}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        }).then((r) => r.json()),
+        fetch(`/api/seasons?t=${stamp}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        }).then((r) => r.json()),
+      ]);
 
-    const nextNumber =
-      allSeasons.reduce((max, season) => Math.max(max, Number(season.season_number || 0)), 5) + 1;
+      const allSeasons = ((seasonsRes.seasons || []) as Season[]).filter(Boolean);
+      const activeSeasonFromList = allSeasons.find((season) => season.status === 'active') || null;
+      const activeSeason = (currentRes.season as Season | null) || activeSeasonFromList;
 
-    setSeasonNumber(String(nextNumber));
+      setCurrent(activeSeason);
+      setSeasons(allSeasons);
+
+      const nextNumber =
+        allSeasons.reduce((max, season) => Math.max(max, Number(season.season_number || 0)), 5) + 1;
+
+      setSeasonNumber((old) => old || String(nextNumber));
+      setLastSync(new Date().toLocaleTimeString());
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Could not refresh season status.');
+    } finally {
+      setSyncing(false);
+    }
   }
 
   useEffect(() => {
@@ -82,7 +104,7 @@ export function SeasonManagementPanel() {
     let alive = true;
 
     async function loadDetails() {
-      const res = await fetch(`/api/seasons/${sourceSeasonId}`, { cache: 'no-store' });
+      const res = await fetch(`/api/seasons/${sourceSeasonId}?t=${Date.now()}`, { cache: 'no-store' });
       const json = await res.json().catch(() => null);
 
       if (alive && json?.season) {
@@ -98,8 +120,10 @@ export function SeasonManagementPanel() {
   }, [sourceSeasonId]);
 
   async function endSeason() {
-    if (!current) {
+    if (!hasActiveSeason || !current) {
+      setCurrent(null);
       toast('No active season to end.');
+      await load();
       return;
     }
 
@@ -112,11 +136,26 @@ export function SeasonManagementPanel() {
     setBusy(true);
 
     try {
-      await authFetch('/api/admin/seasons/end', { method: 'POST', body: '{}' });
-      toast(`${current.name} ended. Old data is saved.`);
+      const json = await authFetch('/api/admin/seasons/end', { method: 'POST', body: '{}' });
+
+      if (json.alreadyEnded) {
+        toast('Season was already ended. Start button is now unlocked.');
+      } else {
+        toast(`${current.name} ended. Old data is saved.`);
+      }
+
+      setCurrent(null);
       await load();
     } catch (error) {
-      toast(error instanceof Error ? error.message : 'Could not end season.');
+      const message = error instanceof Error ? error.message : 'Could not end season.';
+
+      if (message.toLowerCase().includes('no active season')) {
+        setCurrent(null);
+        toast('Season is already ended. Start button is now unlocked.');
+        await load();
+      } else {
+        toast(message);
+      }
     } finally {
       setBusy(false);
     }
@@ -130,23 +169,20 @@ export function SeasonManagementPanel() {
       return;
     }
 
-    if (current) {
-      toast(`${current.name} is still active. End it first.`);
-      return;
-    }
-
     setBusy(true);
 
     try {
-      await authFetch('/api/admin/seasons/start', {
+      const json = await authFetch('/api/admin/seasons/start', {
         method: 'POST',
         body: JSON.stringify({ season_number: number }),
       });
 
       toast(`APL ${number} started.`);
+      setCurrent((json.season || null) as Season | null);
       await load();
     } catch (error) {
       toast(error instanceof Error ? error.message : 'Could not start season.');
+      await load();
     } finally {
       setBusy(false);
     }
@@ -162,7 +198,7 @@ export function SeasonManagementPanel() {
       return;
     }
 
-    if (!current) {
+    if (!hasActiveSeason) {
       toast('Start a new active season first.');
       return;
     }
@@ -181,6 +217,7 @@ export function SeasonManagementPanel() {
 
       toast('Old season data imported into current season.');
       setSelectedIds([]);
+      await load();
     } catch (error) {
       toast(error instanceof Error ? error.message : 'Could not import old season data.');
     } finally {
@@ -219,16 +256,20 @@ export function SeasonManagementPanel() {
           <p className="inline-flex items-center gap-2 rounded-full border border-yellow-300/20 bg-yellow-300/10 px-3 py-1 text-xs font-black uppercase tracking-wider text-yellow-300">
             <History size={15} /> Season Management
           </p>
+
           <h2 className="mt-3 text-3xl font-black text-white">
-            {current ? `Current Season: ${current.name}` : 'No Current Season Going'}
+            {hasActiveSeason && current ? `Current Season: ${current.name}` : 'No Current Season Going'}
           </h2>
+
           <p className="mt-2 max-w-2xl text-white/55">
             End current season safely, start next APL season, and import old data without deleting anything.
           </p>
+
+          {lastSync && <p className="mt-2 text-xs text-white/35">Last synced: {lastSync}</p>}
         </div>
 
-        <button type="button" onClick={() => void load()} className="btn-ghost">
-          <RefreshCw size={16} /> Refresh
+        <button type="button" onClick={() => void load()} disabled={syncing} className="btn-ghost disabled:opacity-45">
+          <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} /> {syncing ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
 
@@ -237,6 +278,7 @@ export function SeasonManagementPanel() {
           <h3 className="flex items-center gap-2 text-xl font-black text-white">
             <AlertTriangle className="text-red-300" /> End Season
           </h3>
+
           <p className="mt-2 text-sm text-white/55">
             Danger action. It will end the season but will not delete players, teams, bids, or auction data.
           </p>
@@ -244,11 +286,11 @@ export function SeasonManagementPanel() {
           <button
             type="button"
             onClick={() => void endSeason()}
-            disabled={!current || busy}
+            disabled={!hasActiveSeason || busy}
             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-red-500 px-5 py-3 font-black text-white shadow-lg shadow-red-500/20 disabled:cursor-not-allowed disabled:opacity-45"
           >
             <Square size={16} />
-            {current ? `END SEASON ${current.name}` : 'NO ACTIVE SEASON'}
+            {hasActiveSeason && current ? `END SEASON ${current.name}` : 'NO ACTIVE SEASON'}
           </button>
         </div>
 
@@ -256,7 +298,10 @@ export function SeasonManagementPanel() {
           <h3 className="flex items-center gap-2 text-xl font-black text-white">
             <Play className="text-green-300" /> Start New Season
           </h3>
-          <p className="mt-2 text-sm text-white/55">Disabled while a current season is active.</p>
+
+          <p className="mt-2 text-sm text-white/55">
+            {hasActiveSeason ? 'Disabled while a current season is active.' : 'Enter the next season number and start.'}
+          </p>
 
           <div className="mt-5 flex flex-col gap-3 sm:flex-row">
             <input
@@ -266,13 +311,14 @@ export function SeasonManagementPanel() {
               min="1"
               className="input flex-1"
               placeholder="6"
-              disabled={Boolean(current) || busy}
+              disabled={hasActiveSeason || busy}
             />
+
             <button
               type="button"
               onClick={() => void startSeason()}
-              disabled={Boolean(current) || busy}
-              className="btn-primary justify-center disabled:opacity-45"
+              disabled={hasActiveSeason || busy}
+              className="btn-primary justify-center disabled:cursor-not-allowed disabled:opacity-45"
             >
               START SEASON APL {seasonNumber || '?'}
             </button>
@@ -284,6 +330,7 @@ export function SeasonManagementPanel() {
         <h3 className="flex items-center gap-2 text-xl font-black text-white">
           <Import className="text-yellow-300" /> Import From Old Season
         </h3>
+
         <p className="mt-2 text-sm text-white/55">
           Copies data into the current season. Old season remains unchanged.
         </p>
@@ -315,8 +362,8 @@ export function SeasonManagementPanel() {
           <button
             type="button"
             onClick={() => void importSelected()}
-            disabled={!current || !sourceSeasonId || busy}
-            className="btn-primary justify-center disabled:opacity-45"
+            disabled={!hasActiveSeason || !sourceSeasonId || busy}
+            className="btn-primary justify-center disabled:cursor-not-allowed disabled:opacity-45"
           >
             Import
           </button>

@@ -1,16 +1,28 @@
 import { NextResponse } from 'next/server';
-import { requireAdminRequest, createAuctionEvent } from '@/lib/auction-server';
+
+import { createAuctionEvent, requireAdminRequest } from '@/lib/auction-server';
 import { getActiveSeason } from '@/lib/season-server';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+  Pragma: 'no-cache',
+  Expires: '0',
+};
 
 export async function POST(request: Request) {
   const { response, supabase } = requireAdminRequest(request);
+
   if (response || !supabase) return response;
 
   const season = await getActiveSeason(supabase);
 
-  if (!season) return NextResponse.json({ error: 'No active season to end.' }, { status: 400 });
+  if (!season) {
+    return NextResponse.json({ ok: true, alreadyEnded: true, season: null }, { headers: NO_STORE_HEADERS });
+  }
 
   const now = new Date().toISOString();
 
@@ -19,7 +31,9 @@ export async function POST(request: Request) {
     .update({ status: 'ended', ended_at: now })
     .eq('id', season.id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500, headers: NO_STORE_HEADERS });
+  }
 
   await supabase
     .from('auction')
@@ -45,5 +59,8 @@ export async function POST(request: Request) {
     message: `${season.name} ended. Old data is saved read-only.`,
   }).catch(() => undefined);
 
-  return NextResponse.json({ ok: true, season: { ...season, status: 'ended', ended_at: now } });
+  return NextResponse.json(
+    { ok: true, alreadyEnded: false, season: { ...season, status: 'ended', ended_at: now } },
+    { headers: NO_STORE_HEADERS },
+  );
 }

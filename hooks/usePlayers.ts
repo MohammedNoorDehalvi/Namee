@@ -1,20 +1,7 @@
-'use client';
+"use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabase/client';
-import type { Player, PlayerRole, Season } from '@/lib/types';
-
-async function getActiveSeason() {
-  const { data } = await supabase
-    .from('seasons')
-    .select('*')
-    .eq('status', 'active')
-    .order('started_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  return data as Season | null;
-}
+import type { Player, PlayerRole } from '@/lib/types';
 
 export function useApprovedPlayers() {
   const [players, setPlayers] = useState<Player[]>([]);
@@ -22,40 +9,28 @@ export function useApprovedPlayers() {
   const [search, setSearch] = useState('');
   const [role, setRole] = useState<PlayerRole | 'All'>('All');
 
-  async function load() {
-    setLoading(true);
+  async function load(silent = false) {
+    if (!silent) setLoading(true);
 
-    const season = await getActiveSeason();
+    try {
+      const res = await fetch(`/api/players?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' },
+      });
 
-    if (!season) {
-      setPlayers([]);
-      setLoading(false);
-      return;
+      const json = await res.json().catch(() => ({ players: [] }));
+      setPlayers((json.players || []) as Player[]);
+    } finally {
+      if (!silent) setLoading(false);
     }
-
-    const { data } = await supabase
-      .from('players')
-      .select('*')
-      .eq('season_id', season.id)
-      .eq('approval_status', 'Approved')
-      .order('created_at', { ascending: false });
-
-    setPlayers((data || []) as Player[]);
-    setLoading(false);
   }
 
   useEffect(() => {
     void load();
 
-    const channel = supabase
-      .channel('apl-approved-players-season')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'seasons' }, () => void load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => void load())
-      .subscribe();
+    const intervalId = window.setInterval(() => void load(true), 2500);
 
-    return () => {
-      void supabase.removeChannel(channel);
-    };
+    return () => window.clearInterval(intervalId);
   }, []);
 
   const filteredPlayers = useMemo(

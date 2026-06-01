@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
+
 import { createAuctionEvent, jsonError, requireAdminRequest } from '@/lib/auction-server';
 import { getActiveSeason } from '@/lib/season-server';
 
@@ -24,14 +25,12 @@ function cleanText(value: unknown) {
 
 function cleanNumber(value: unknown, fallback: number) {
   if (value === undefined || value === null || value === '') return fallback;
+
   const number = Number(value);
+
   if (!Number.isFinite(number)) return Number.NaN;
 
   return Math.round(number);
-}
-
-function key(value: unknown) {
-  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 function fileExtension(file: File) {
@@ -45,7 +44,13 @@ function fileExtension(file: File) {
   return 'jpg';
 }
 
-async function ensureAssetBucket(supabase: NonNullable<ReturnType<typeof requireAdminRequest>['supabase']>) {
+function isStorageBucketMissing(message: string) {
+  const safe = message.toLowerCase();
+
+  return safe.includes('bucket') && (safe.includes('not found') || safe.includes('does not exist'));
+}
+
+async function ensureAssetBucket(supabase: any) {
   const { error } = await supabase.storage.createBucket(ASSET_BUCKET, {
     public: true,
     fileSizeLimit: `${MAX_IMAGE_SIZE_BYTES}`,
@@ -54,16 +59,13 @@ async function ensureAssetBucket(supabase: NonNullable<ReturnType<typeof require
 
   const message = error?.message.toLowerCase() || '';
 
-  if (error && !message.includes('already exists') && !message.includes('already exist')) throw new Error(error.message);
-}
-
-function isStorageBucketMissing(message: string) {
-  const safe = message.toLowerCase();
-  return safe.includes('bucket') && (safe.includes('not found') || safe.includes('does not exist'));
+  if (error && !message.includes('already exists') && !message.includes('already exist')) {
+    throw new Error(error.message);
+  }
 }
 
 async function uploadPublicImage(
-  supabase: NonNullable<ReturnType<typeof requireAdminRequest>['supabase']>,
+  supabase: any,
   file: File | null | undefined,
   folder: 'team-logos' | 'captain-photos',
 ) {
@@ -83,6 +85,7 @@ async function uploadPublicImage(
 
   if (upload.error && isStorageBucketMissing(upload.error.message)) {
     await ensureAssetBucket(supabase);
+
     upload = await supabase.storage.from(ASSET_BUCKET).upload(path, buffer, {
       contentType: file.type || 'image/jpeg',
       cacheControl: '31536000',
@@ -93,6 +96,7 @@ async function uploadPublicImage(
   if (upload.error) throw new Error(upload.error.message);
 
   const { data } = supabase.storage.from(ASSET_BUCKET).getPublicUrl(path);
+
   return data.publicUrl;
 }
 
@@ -118,12 +122,38 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
   return (await request.json().catch(() => ({}))) as ParsedRequest;
 }
 
+async function findTeam(supabase: any, seasonId: string, teamName: string) {
+  const { data } = await supabase
+    .from('teams')
+    .select('*')
+    .eq('season_id', seasonId)
+    .ilike('team_name', teamName)
+    .limit(1);
+
+  return data?.[0] || null;
+}
+
+async function findCaptain(supabase: any, seasonId: string, captainName: string, teamName: string) {
+  const { data } = await supabase
+    .from('captains')
+    .select('*')
+    .eq('season_id', seasonId)
+    .or(`captain_name.ilike.${captainName},team_name.ilike.${teamName}`)
+    .limit(1);
+
+  return data?.[0] || null;
+}
+
 export async function POST(request: Request) {
   const { response, supabase } = requireAdminRequest(request);
+
   if (response || !supabase) return response;
 
-  const season = await getActiveSeason(supabase);
-  if (!season) return jsonError('No current season going. Start a season first.');
+  const activeSeason = await getActiveSeason(supabase);
+
+  if (!activeSeason) {
+    return jsonError('Start a season before adding teams and captains.', 400);
+  }
 
   const body = await parseRequest(request);
   const teamName = cleanText(body.team_name);
@@ -136,30 +166,27 @@ export async function POST(request: Request) {
   if (captainName.length < 2) return jsonError('Captain name must be at least 2 characters.');
   if (password.length < 4) return jsonError('Captain password must be at least 4 characters.');
   if (!Number.isFinite(budget) || budget <= 0) return jsonError('Budget must be a positive number.');
-  if (!Number.isFinite(maxPlayers) || maxPlayers < 1 || maxPlayers > 20) return jsonError('Max players must be between 1 and 20.');
+  if (!Number.isFinite(maxPlayers) || maxPlayers < 1 || maxPlayers > 20) {
+    return jsonError('Max players must be between 1 and 20.');
+  }
 
   try {
-    const passwordHash = await bcrypt.hash(password, 12);
-
-    const [{ data: existingTeams }, { data: existingCaptains }, teamLogoUrl, captainPhotoUrl] = await Promise.all([
-      supabase.from('teams').select('*').eq('season_id', season.id),
-      supabase.from('captains').select('*').eq('season_id', season.id),
+    const [teamLogoUrl, captainPhotoUrl] = await Promise.all([
       uploadPublicImage(supabase, body.team_logo, 'team-logos'),
       uploadPublicImage(supabase, body.captain_photo, 'captain-photos'),
     ]);
 
-    const existingTeam = (existingTeams || []).find((team) => key(team.team_name) === key(teamName));
-    const existingCaptain =
-      (existingCaptains || []).find((captain) => key(captain.captain_name) === key(captainName)) ||
-      (existingCaptains || []).find((captain) => key(captain.team_name) === key(teamName));
+    const passwordHash = await bcrypt.hash(password, 12);
+    const existingTeam = await findTeam(supabase, activeSeason.id, teamName);
+    const existingCaptain = await findCaptain(supabase, activeSeason.id, captainName, teamName);
 
     const captainPayload: Record<string, unknown> = {
-      season_id: season.id,
       captain_name: captainName,
       team_name: teamName,
       password_hash: passwordHash,
       budget,
       remaining_budget: budget,
+      season_id: activeSeason.id,
     };
 
     if (captainPhotoUrl) captainPayload.photo_url = captainPhotoUrl;
@@ -169,18 +196,20 @@ export async function POST(request: Request) {
       ? await supabase.from('captains').update(captainPayload).eq('id', existingCaptain.id).select('*').single()
       : await supabase.from('captains').insert(captainPayload).select('*').single();
 
-    if (captainResult.error) return jsonError(captainResult.error.message, 500);
+    if (captainResult.error) {
+      return jsonError(`${captainResult.error.message}. If this is duplicate old-season data, run supabase/season_import_current_data_fix.sql once.`, 500);
+    }
 
     const captain = captainResult.data;
 
     const teamPayload: Record<string, unknown> = {
-      season_id: season.id,
       team_name: teamName,
       captain_id: captain.id,
       captain_name: captainName,
       budget,
       remaining_budget: budget,
       max_players: maxPlayers,
+      season_id: activeSeason.id,
     };
 
     if (teamLogoUrl) teamPayload.logo_url = teamLogoUrl;
@@ -190,22 +219,33 @@ export async function POST(request: Request) {
       ? await supabase.from('teams').update(teamPayload).eq('id', existingTeam.id).select('*').single()
       : await supabase.from('teams').insert(teamPayload).select('*').single();
 
-    if (teamResult.error) return jsonError(teamResult.error.message, 500);
+    if (teamResult.error) {
+      return jsonError(`${teamResult.error.message}. If this is duplicate old-season data, run supabase/season_import_current_data_fix.sql once.`, 500);
+    }
 
     const team = teamResult.data;
 
-    await supabase.from('captains').update({ team_id: team.id }).eq('id', captain.id);
+    await supabase
+      .from('captains')
+      .update({ team_id: team.id, team_name: team.team_name, season_id: activeSeason.id })
+      .eq('id', captain.id);
 
     await createAuctionEvent(supabase, {
-      season_id: season.id,
       event_type: existingTeam ? 'STATUS' : 'TEAM_CREATED',
-      message: existingTeam ? `Admin updated ${teamName} with captain ${captainName}.` : `Admin added ${teamName} with captain ${captainName}.`,
+      message: existingTeam
+        ? `Admin updated ${teamName} with captain ${captainName}.`
+        : `Admin added ${teamName} with captain ${captainName}.`,
       team_id: team.id,
       captain_id: captain.id,
-      metadata: { budget, max_players: maxPlayers },
+      metadata: { season_id: activeSeason.id, budget, max_players: maxPlayers },
     }).catch(() => undefined);
 
-    return NextResponse.json({ ok: true, team, captain, season });
+    return NextResponse.json({
+      ok: true,
+      message: existingTeam ? 'Team existed in this season, so details were updated.' : 'Team and captain saved.',
+      team,
+      captain,
+    });
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : 'Could not save team and captain.', 500);
   }

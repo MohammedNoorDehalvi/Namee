@@ -8,13 +8,19 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+type AnyRow = Record<string, any>;
+
 const schema = z.object({
   source_season_id: z.string().uuid(),
   import_type: z.enum(['teams', 'captains', 'players', 'all']),
   ids: z.array(z.string().uuid()).optional().default([]),
 });
 
-function stripSystemFields(row: Record<string, unknown>) {
+function cleanText(value: unknown) {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+}
+
+function stripSystemFields(row: AnyRow) {
   const copy = { ...row };
 
   delete copy.id;
@@ -24,55 +30,203 @@ function stripSystemFields(row: Record<string, unknown>) {
   return copy;
 }
 
-function bySelected<T extends { id?: string }>(rows: T[], ids: string[]) {
+function selectRows<T extends { id?: string }>(rows: T[], ids: string[]) {
   return ids.length ? rows.filter((row) => row.id && ids.includes(row.id)) : rows;
 }
 
-function approvedOnly<T extends { approval_status?: string | null }>(rows: T[]) {
-  return rows.filter((row) => row.approval_status === 'Approved');
+async function findExistingByName(
+  supabase: any,
+  table: 'teams' | 'captains' | 'players',
+  seasonId: string,
+  nameField: 'team_name' | 'captain_name' | 'name',
+  name: string,
+) {
+  const { data } = await supabase
+    .from(table)
+    .select('*')
+    .eq('season_id', seasonId)
+    .ilike(nameField, name)
+    .limit(1);
+
+  return data?.[0] || null;
 }
 
-async function insertIfMissing(
-  supabase: NonNullable<ReturnType<typeof requireAdminRequest>['supabase']>,
-  table: 'teams' | 'captains' | 'players',
-  rows: Record<string, unknown>[],
+async function saveCaptainCopy(supabase: any, oldCaptain: AnyRow, activeSeasonId: string) {
+  const captainName = cleanText(oldCaptain.captain_name);
+  const teamName = cleanText(oldCaptain.team_name);
+
+  if (!captainName || !teamName) return null;
+
+  const existing = await findExistingByName(supabase, 'captains', activeSeasonId, 'captain_name', captainName);
+
+  const payload: AnyRow = {
+    ...stripSystemFields(oldCaptain),
+    captain_name: captainName,
+    team_name: teamName,
+    team_id: null,
+    season_id: activeSeasonId,
+  };
+
+  if (!payload.budget) payload.budget = 50000;
+  if (!payload.remaining_budget) payload.remaining_budget = payload.budget;
+  if (!payload.password_hash) {
+    // Fallback only for broken old captain rows. Admin can reset later from team form.
+    payload.password_hash = '$2a$12$KIXr19AlfWHFjzPbqmV.Seh2oqhrZotvEjfYDQyEWW4m9m7BHTD8K';
+  }
+
+  if (existing?.id) {
+    const { data, error } = await supabase.from('captains').update(payload).eq('id', existing.id).select('*').single();
+
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  const { data, error } = await supabase.from('captains').insert(payload).select('*').single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function saveTeamCopy(supabase: any, oldTeam: AnyRow, copiedCaptain: AnyRow | null, activeSeasonId: string) {
+  const teamName = cleanText(oldTeam.team_name);
+
+  if (!teamName) return null;
+
+  const existing = await findExistingByName(supabase, 'teams', activeSeasonId, 'team_name', teamName);
+
+  const payload: AnyRow = {
+    ...stripSystemFields(oldTeam),
+    team_name: teamName,
+    captain_id: copiedCaptain?.id || null,
+    captain_name: copiedCaptain?.captain_name || oldTeam.captain_name || null,
+    season_id: activeSeasonId,
+  };
+
+  if (!payload.budget) payload.budget = 50000;
+  if (!payload.remaining_budget) payload.remaining_budget = payload.budget;
+  if (!payload.max_players) payload.max_players = 4;
+
+  let team: AnyRow | null = null;
+
+  if (existing?.id) {
+    const { data, error } = await supabase.from('teams').update(payload).eq('id', existing.id).select('*').single();
+
+    if (error) throw new Error(error.message);
+    team = data;
+  } else {
+    const { data, error } = await supabase.from('teams').insert(payload).select('*').single();
+
+    if (error) throw new Error(error.message);
+    team = data;
+  }
+
+  if (team?.id && copiedCaptain?.id) {
+    await supabase
+      .from('captains')
+      .update({ team_id: team.id, team_name: team.team_name, season_id: activeSeasonId })
+      .eq('id', copiedCaptain.id);
+  }
+
+  return team;
+}
+
+function findCaptainForTeam(oldTeam: AnyRow, oldCaptains: AnyRow[]) {
+  return (
+    oldCaptains.find((captain) => captain.id && captain.id === oldTeam.captain_id) ||
+    oldCaptains.find((captain) => cleanText(captain.team_name).toLowerCase() === cleanText(oldTeam.team_name).toLowerCase()) ||
+    oldCaptains.find((captain) => cleanText(captain.captain_name).toLowerCase() === cleanText(oldTeam.captain_name).toLowerCase()) ||
+    null
+  );
+}
+
+function findTeamForCaptain(oldCaptain: AnyRow, oldTeams: AnyRow[]) {
+  return (
+    oldTeams.find((team) => team.id && oldCaptain.team_id && team.id === oldCaptain.team_id) ||
+    oldTeams.find((team) => cleanText(team.team_name).toLowerCase() === cleanText(oldCaptain.team_name).toLowerCase()) ||
+    oldTeams.find((team) => cleanText(team.captain_name).toLowerCase() === cleanText(oldCaptain.captain_name).toLowerCase()) ||
+    null
+  );
+}
+
+async function copyTeamWithCaptain(
+  supabase: any,
+  oldTeam: AnyRow,
+  oldCaptains: AnyRow[],
   activeSeasonId: string,
+  output: Record<string, unknown[]>,
 ) {
+  const oldCaptain = findCaptainForTeam(oldTeam, oldCaptains);
+  const copiedCaptain = oldCaptain ? await saveCaptainCopy(supabase, oldCaptain, activeSeasonId) : null;
+  const copiedTeam = await saveTeamCopy(supabase, oldTeam, copiedCaptain, activeSeasonId);
+
+  if (copiedCaptain && !output.captains.some((item: any) => item.id === copiedCaptain.id)) {
+    output.captains.push(copiedCaptain);
+  }
+
+  if (copiedTeam && !output.teams.some((item: any) => item.id === copiedTeam.id)) {
+    output.teams.push(copiedTeam);
+  }
+}
+
+async function copyCaptainWithTeam(
+  supabase: any,
+  oldCaptain: AnyRow,
+  oldTeams: AnyRow[],
+  activeSeasonId: string,
+  output: Record<string, unknown[]>,
+) {
+  const copiedCaptain = await saveCaptainCopy(supabase, oldCaptain, activeSeasonId);
+  const oldTeam = findTeamForCaptain(oldCaptain, oldTeams);
+
+  if (copiedCaptain && !output.captains.some((item: any) => item.id === copiedCaptain.id)) {
+    output.captains.push(copiedCaptain);
+  }
+
+  if (oldTeam) {
+    const copiedTeam = await saveTeamCopy(supabase, oldTeam, copiedCaptain, activeSeasonId);
+
+    if (copiedTeam && !output.teams.some((item: any) => item.id === copiedTeam.id)) {
+      output.teams.push(copiedTeam);
+    }
+  }
+}
+
+async function copyApprovedPlayers(supabase: any, oldPlayers: AnyRow[], selectedIds: string[], activeSeasonId: string) {
+  const rows = selectRows(
+    oldPlayers.filter((player) => player.approval_status === 'Approved'),
+    selectedIds,
+  );
+
   const inserted: unknown[] = [];
 
   for (const row of rows) {
-    const clean = stripSystemFields(row);
-    const nameField = table === 'teams' ? 'team_name' : table === 'captains' ? 'captain_name' : 'name';
-    const name = String(clean[nameField] || '').trim();
+    const playerName = cleanText(row.name);
 
-    if (!name) continue;
+    if (!playerName) continue;
 
-    const { data: existing } = await supabase
-      .from(table)
-      .select('id')
-      .eq('season_id', activeSeasonId)
-      .eq(nameField, name)
-      .limit(1);
+    const existing = await findExistingByName(supabase, 'players', activeSeasonId, 'name', playerName);
 
-    if (existing?.length) continue;
+    if (existing?.id) continue;
 
-    if (table === 'players') {
-      clean.status = 'Available';
-      clean.auction_status = 'PENDING';
-      clean.approval_status = 'Approved';
-      clean.current_bid = Number(clean.base_price || 0);
-      clean.sold_to_team = null;
-      clean.sold_to_team_id = null;
-      clean.sold_to_captain_id = null;
-      clean.sold_price = null;
-      clean.assigned_by_admin = false;
-    }
+    const payload: AnyRow = {
+      ...stripSystemFields(row),
+      name: playerName,
+      season_id: activeSeasonId,
+      approval_status: 'Approved',
+      status: 'Available',
+      auction_status: 'PENDING',
+      current_bid: Number(row.base_price || 0),
+      sold_to_team: null,
+      sold_to_team_id: null,
+      sold_to_captain_id: null,
+      sold_price: null,
+      assigned_by_admin: false,
+    };
 
-    clean.season_id = activeSeasonId;
+    const { data, error } = await supabase.from('players').insert(payload).select('*').single();
 
-    const { data, error } = await supabase.from(table).insert(clean).select('*').single();
-
-    if (!error && data) inserted.push(data);
+    if (error) throw new Error(error.message);
+    if (data) inserted.push(data);
   }
 
   return inserted;
@@ -99,29 +253,66 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Choose an old season, not the current season.' }, { status: 400 });
   }
 
-  const { import_type, source_season_id, ids } = parsed.data;
+  const { source_season_id, import_type, ids } = parsed.data;
+
+  const [{ data: oldTeams }, { data: oldCaptains }, { data: oldPlayers }] = await Promise.all([
+    supabase.from('teams').select('*').eq('season_id', source_season_id),
+    supabase.from('captains').select('*').eq('season_id', source_season_id),
+    supabase.from('players').select('*').eq('season_id', source_season_id).eq('approval_status', 'Approved'),
+  ]);
+
   const output: Record<string, unknown[]> = { teams: [], captains: [], players: [] };
 
-  if (import_type === 'captains' || import_type === 'all') {
-    const { data } = await supabase.from('captains').select('*').eq('season_id', source_season_id);
-    output.captains = await insertIfMissing(supabase, 'captains', bySelected(data || [], ids), activeSeason.id);
+  try {
+    if (import_type === 'teams') {
+      const selectedTeams = selectRows(oldTeams || [], ids);
+
+      for (const team of selectedTeams) {
+        await copyTeamWithCaptain(supabase, team, oldCaptains || [], activeSeason.id, output);
+      }
+    }
+
+    if (import_type === 'captains') {
+      const selectedCaptains = selectRows(oldCaptains || [], ids);
+
+      for (const captain of selectedCaptains) {
+        await copyCaptainWithTeam(supabase, captain, oldTeams || [], activeSeason.id, output);
+      }
+    }
+
+    if (import_type === 'players') {
+      output.players = await copyApprovedPlayers(supabase, oldPlayers || [], ids, activeSeason.id);
+    }
+
+    if (import_type === 'all') {
+      for (const team of oldTeams || []) {
+        await copyTeamWithCaptain(supabase, team, oldCaptains || [], activeSeason.id, output);
+      }
+
+      // Copy captains that are not connected to a copied team.
+      for (const captain of oldCaptains || []) {
+        const alreadyCopied = output.captains.some(
+          (item: any) => cleanText(item.captain_name).toLowerCase() === cleanText(captain.captain_name).toLowerCase(),
+        );
+
+        if (!alreadyCopied) {
+          await copyCaptainWithTeam(supabase, captain, oldTeams || [], activeSeason.id, output);
+        }
+      }
+
+      output.players = await copyApprovedPlayers(supabase, oldPlayers || [], [], activeSeason.id);
+    }
+
+    return NextResponse.json({ ok: true, imported: output });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? `${error.message}. If this mentions duplicate team/captain name, run supabase/season_import_current_data_fix.sql once.`
+            : 'Import failed.',
+      },
+      { status: 500 },
+    );
   }
-
-  if (import_type === 'teams' || import_type === 'all') {
-    const { data } = await supabase.from('teams').select('*').eq('season_id', source_season_id);
-    output.teams = await insertIfMissing(supabase, 'teams', bySelected(data || [], ids), activeSeason.id);
-  }
-
-  if (import_type === 'players' || import_type === 'all') {
-    const { data } = await supabase
-      .from('players')
-      .select('*')
-      .eq('season_id', source_season_id)
-      .eq('approval_status', 'Approved');
-
-    const approvedRows = approvedOnly(data || []);
-    output.players = await insertIfMissing(supabase, 'players', bySelected(approvedRows, ids), activeSeason.id);
-  }
-
-  return NextResponse.json({ ok: true, imported: output });
 }

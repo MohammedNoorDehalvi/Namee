@@ -1,9 +1,10 @@
-'use client';
+"use client";
 
+import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
-import { Shield } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
-import type { Captain, Player, Season, Team } from '@/lib/types';
+import { RefreshCw, Shield } from 'lucide-react';
+
+import type { Player, Season, Team } from '@/lib/types';
 import { formatMoney, initials } from '@/lib/format';
 import { EmptyState } from '@/components/ui/EmptyState';
 
@@ -12,81 +13,68 @@ type TeamGroup = Team & {
   captain_photo_url?: string | null;
 };
 
-async function getActiveSeason() {
-  const { data } = await supabase
-    .from('seasons')
-    .select('*')
-    .eq('status', 'active')
-    .order('started_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  return data as Season | null;
-}
+type TeamsResponse = {
+  season: Season | null;
+  teams: TeamGroup[];
+  error?: string;
+};
 
 export function TeamsClient() {
   const [teams, setTeams] = useState<TeamGroup[]>([]);
+  const [season, setSeason] = useState<Season | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  async function load() {
-    setLoading(true);
+  async function load(silent = false) {
+    if (!silent) setLoading(true);
 
-    const season = await getActiveSeason();
+    try {
+      const res = await fetch(`/api/teams?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' },
+      });
 
-    if (!season) {
-      setTeams([]);
-      setLoading(false);
-      return;
+      const json = (await res.json().catch(() => ({ teams: [] }))) as TeamsResponse;
+
+      if (!res.ok) {
+        throw new Error(json.error || 'Could not load teams.');
+      }
+
+      setSeason(json.season || null);
+      setTeams(json.teams || []);
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load teams.');
+    } finally {
+      if (!silent) setLoading(false);
     }
-
-    const [{ data: teamData }, { data: playerData }, { data: captainData }] = await Promise.all([
-      supabase.from('teams').select('*').eq('season_id', season.id).order('team_name'),
-      supabase.from('players').select('*').eq('season_id', season.id).eq('status', 'Sold'),
-      supabase
-        .from('captains')
-        .select('id,season_id,captain_name,team_name,team_id,photo_url,budget,remaining_budget,created_at')
-        .eq('season_id', season.id),
-    ]);
-
-    const players = (playerData || []) as Player[];
-    const captains = (captainData || []) as Captain[];
-
-    const grouped = ((teamData || []) as Team[]).map((team) => {
-      const captain =
-        captains.find((item) => item.id === team.captain_id) ||
-        captains.find((item) => item.team_id === team.id) ||
-        captains.find((item) => item.team_name === team.team_name);
-
-      return {
-        ...team,
-        captain_name: team.captain_name || captain?.captain_name || 'Captain',
-        captain_photo_url: captain?.photo_url || team.captain_photo_url || null,
-        players: players.filter((p) => p.sold_to_captain_id === team.captain_id || p.sold_to_team === team.team_name),
-      };
-    });
-
-    setTeams(grouped);
-    setLoading(false);
   }
 
   useEffect(() => {
     void load();
 
-    const channel = supabase
-      .channel('apl-teams-season-images')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'seasons' }, () => void load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => void load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => void load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'captains' }, () => void load())
-      .subscribe();
+    const interval = window.setInterval(() => void load(true), 2500);
 
-    return () => {
-      void supabase.removeChannel(channel);
-    };
+    return () => window.clearInterval(interval);
   }, []);
 
   if (loading) {
     return <div className="py-20 text-center text-white/70">Loading teams...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-[2rem] border border-red-300/20 bg-red-500/10 p-8 text-center">
+        <p className="font-black text-red-200">{error}</p>
+        <button type="button" onClick={() => void load()} className="btn-ghost mt-4">
+          <RefreshCw size={16} /> Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!season) {
+    return <EmptyState title="No current season going" description="Teams will appear when admin starts a new season." />;
   }
 
   if (teams.length === 0) {
@@ -95,6 +83,17 @@ export function TeamsClient() {
 
   return (
     <div className="grid gap-8">
+      <div className="flex flex-col gap-3 rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-apl-gold">Current Season</p>
+          <h2 className="mt-1 text-2xl font-black text-white">{season.name}</h2>
+        </div>
+
+        <button type="button" onClick={() => void load()} className="btn-ghost">
+          <RefreshCw size={16} /> Refresh
+        </button>
+      </div>
+
       {teams.map((team) => (
         <TeamCard key={team.id} team={team} />
       ))}
@@ -103,7 +102,7 @@ export function TeamsClient() {
 }
 
 function TeamCard({ team }: { team: TeamGroup }) {
-  const spent = Number(team.budget || 0) - Number(team.remaining_budget || 0);
+  const spent = Math.max(0, Number(team.budget || 0) - Number(team.remaining_budget || 0));
 
   return (
     <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur md:p-8">
@@ -112,6 +111,7 @@ function TeamCard({ team }: { team: TeamGroup }) {
 
         <div className="min-w-0 flex-1">
           <h2 className="break-words text-4xl font-black text-white md:text-5xl">{team.team_name}</h2>
+
           <div className="mt-3 flex items-center gap-3 text-lg text-white/65">
             <LogoAvatar src={team.captain_photo_url} label={team.captain_name} size="sm" />
             <span>Captain: {team.captain_name}</span>
@@ -131,13 +131,14 @@ function TeamCard({ team }: { team: TeamGroup }) {
           <p className="text-white/55">No bought players yet.</p>
         ) : (
           <div className="grid gap-3">
-            {team.players.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                <LogoAvatar src={p.photo_url} label={p.name} size="md" />
+            {team.players.map((player) => (
+              <div key={player.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <LogoAvatar src={player.photo_url} label={player.name} size="md" />
+
                 <div className="min-w-0">
-                  <p className="truncate font-bold text-white">{p.name}</p>
+                  <p className="truncate font-bold text-white">{player.name}</p>
                   <p className="text-sm text-white/55">
-                    {p.role} • {formatMoney(p.sold_price)}
+                    {player.role} • {formatMoney(player.sold_price)}
                   </p>
                 </div>
               </div>
@@ -149,7 +150,7 @@ function TeamCard({ team }: { team: TeamGroup }) {
   );
 }
 
-function Info({ label, value }: { label: string; value: React.ReactNode }) {
+function Info({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
       <p className="text-sm text-white/45">{label}</p>

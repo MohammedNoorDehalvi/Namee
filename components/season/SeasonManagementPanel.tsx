@@ -17,6 +17,10 @@ type SeasonDetails = {
 type ImportType = 'teams' | 'captains' | 'players' | 'all';
 type ImportableItem = Team | Captain | Player;
 
+function isApprovedPlayer(player: Player) {
+  return player.approval_status === 'Approved';
+}
+
 export function SeasonManagementPanel() {
   const [current, setCurrent] = useState<Season | null>(null);
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -215,7 +219,11 @@ export function SeasonManagementPanel() {
         }),
       });
 
-      toast('Old season data imported into current season.');
+      toast(
+        importType === 'players' || importType === 'all'
+          ? 'Approved old season player data imported into current season.'
+          : 'Old season data imported into current season.',
+      );
       setSelectedIds([]);
       await load();
     } catch (error) {
@@ -225,13 +233,15 @@ export function SeasonManagementPanel() {
     }
   }
 
+  const approvedOldPlayers = (details?.players || []).filter(isApprovedPlayer);
+
   const selectable: ImportableItem[] =
     importType === 'teams'
       ? details?.teams || []
       : importType === 'captains'
         ? details?.captains || []
         : importType === 'players'
-          ? details?.players || []
+          ? approvedOldPlayers
           : [];
 
   function itemLabel(item: ImportableItem) {
@@ -246,7 +256,7 @@ export function SeasonManagementPanel() {
     }
 
     const player = item as Player;
-    return player.name;
+    return `${player.name} • Approved`;
   }
 
   return (
@@ -332,7 +342,7 @@ export function SeasonManagementPanel() {
         </h3>
 
         <p className="mt-2 text-sm text-white/55">
-          Copies data into the current season. Old season remains unchanged.
+          Copies data into the current season. Old season remains unchanged. Specific player import shows approved players only.
         </p>
 
         <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -353,10 +363,10 @@ export function SeasonManagementPanel() {
               setSelectedIds([]);
             }}
           >
-            <option value="all">Import all</option>
+            <option value="all">Import all approved players + all teams/captains</option>
             <option value="teams">Specific teams</option>
             <option value="captains">Specific captains</option>
-            <option value="players">Specific players</option>
+            <option value="players">Specific approved players</option>
           </select>
 
           <button
@@ -369,11 +379,19 @@ export function SeasonManagementPanel() {
           </button>
         </div>
 
+        {importType === 'players' && details && (
+          <p className="mt-3 rounded-2xl bg-green-300/10 p-3 text-sm text-green-200">
+            Showing {approvedOldPlayers.length} approved players only. Pending/rejected players are hidden.
+          </p>
+        )}
+
         {importType !== 'all' && (
           <div className="mt-5 grid gap-2">
             {selectable.length === 0 ? (
               <p className="rounded-2xl bg-white/[0.04] p-4 text-sm text-white/50">
-                Select an old season to choose records.
+                {importType === 'players'
+                  ? 'No approved players found in this old season.'
+                  : 'Select an old season to choose records.'}
               </p>
             ) : (
               selectable.map((item) => {

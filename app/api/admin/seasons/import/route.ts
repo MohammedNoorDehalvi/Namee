@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+
 import { requireAdminRequest } from '@/lib/auction-server';
 import { getActiveSeason } from '@/lib/season-server';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const schema = z.object({
   source_season_id: z.string().uuid(),
@@ -13,14 +16,20 @@ const schema = z.object({
 
 function stripSystemFields(row: Record<string, unknown>) {
   const copy = { ...row };
+
   delete copy.id;
   delete copy.created_at;
   delete copy.updated_at;
+
   return copy;
 }
 
 function bySelected<T extends { id?: string }>(rows: T[], ids: string[]) {
   return ids.length ? rows.filter((row) => row.id && ids.includes(row.id)) : rows;
+}
+
+function approvedOnly<T extends { approval_status?: string | null }>(rows: T[]) {
+  return rows.filter((row) => row.approval_status === 'Approved');
 }
 
 async function insertIfMissing(
@@ -71,13 +80,21 @@ async function insertIfMissing(
 
 export async function POST(request: Request) {
   const { response, supabase } = requireAdminRequest(request);
+
   if (response || !supabase) return response;
 
   const parsed = schema.safeParse(await request.json().catch(() => ({})));
-  if (!parsed.success) return NextResponse.json({ error: 'Invalid import request.' }, { status: 400 });
+
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid import request.' }, { status: 400 });
+  }
 
   const activeSeason = await getActiveSeason(supabase);
-  if (!activeSeason) return NextResponse.json({ error: 'Start a new season before importing.' }, { status: 400 });
+
+  if (!activeSeason) {
+    return NextResponse.json({ error: 'Start a new season before importing.' }, { status: 400 });
+  }
+
   if (activeSeason.id === parsed.data.source_season_id) {
     return NextResponse.json({ error: 'Choose an old season, not the current season.' }, { status: 400 });
   }
@@ -96,8 +113,14 @@ export async function POST(request: Request) {
   }
 
   if (import_type === 'players' || import_type === 'all') {
-    const { data } = await supabase.from('players').select('*').eq('season_id', source_season_id);
-    output.players = await insertIfMissing(supabase, 'players', bySelected(data || [], ids), activeSeason.id);
+    const { data } = await supabase
+      .from('players')
+      .select('*')
+      .eq('season_id', source_season_id)
+      .eq('approval_status', 'Approved');
+
+    const approvedRows = approvedOnly(data || []);
+    output.players = await insertIfMissing(supabase, 'players', bySelected(approvedRows, ids), activeSeason.id);
   }
 
   return NextResponse.json({ ok: true, imported: output });

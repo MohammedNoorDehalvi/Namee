@@ -1,26 +1,54 @@
-'use client';
+"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
 import { supabase } from '@/lib/supabase/client';
 import type { Auction, AuctionEvent, Bid, Captain, Player, Season, Team } from '@/lib/types';
 
 type LoadOptions = { silent?: boolean };
 type RealtimeOptions = { pollMs?: number };
 
-async function getActiveSeasonClient() {
-  const { data } = await supabase
-    .from('seasons')
-    .select('*')
-    .eq('status', 'active')
-    .order('started_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+type LiveAuctionState = {
+  season: Season | null;
+  auction: Auction | null;
+  currentPlayer: Player | null;
+  players: Player[];
+  teams: Team[];
+  captains: Captain[];
+  bids: Bid[];
+  events: AuctionEvent[];
+  currentBid?: number;
+  error?: string;
+};
 
-  return data as Season | null;
+const emptyState: LiveAuctionState = {
+  season: null,
+  auction: null,
+  currentPlayer: null,
+  players: [],
+  teams: [],
+  captains: [],
+  bids: [],
+  events: [],
+  currentBid: 0,
+};
+
+async function fetchLiveState() {
+  const res = await fetch(`/api/auction/live-state?t=${Date.now()}`, {
+    cache: 'no-store',
+    headers: { 'Cache-Control': 'no-cache' },
+  });
+
+  const json = (await res.json().catch(() => emptyState)) as LiveAuctionState;
+
+  if (!res.ok) throw new Error(json.error || 'Could not load live auction.');
+
+  return json;
 }
 
 export function useAuctionRealtime(options: RealtimeOptions = {}) {
   const pollMs = Math.max(500, options.pollMs ?? 900);
+
   const [season, setSeason] = useState<Season | null>(null);
   const [auction, setAuction] = useState<Auction | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
@@ -29,6 +57,8 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
   const [bids, setBids] = useState<Bid[]>([]);
   const [events, setEvents] = useState<AuctionEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [serverCurrentBid, setServerCurrentBid] = useState(0);
+
   const inFlightRef = useRef(false);
   const mountedRef = useRef(false);
 
@@ -39,94 +69,29 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
     if (!silent) setLoading(true);
 
     try {
-      const activeSeason = await getActiveSeasonClient();
-
+      const liveState = await fetchLiveState();
       if (!mountedRef.current) return;
 
-      setSeason(activeSeason);
+      setSeason(liveState.season || null);
+      setAuction(liveState.auction || null);
+      setCurrentPlayer(liveState.currentPlayer || null);
+      setPlayers(liveState.players || []);
+      setTeams(liveState.teams || []);
+      setBids(liveState.bids || []);
+      setEvents(liveState.events || []);
+      setServerCurrentBid(Number(liveState.currentBid || 0));
+    } catch {
+      if (!mountedRef.current) return;
 
-      if (!activeSeason) {
+      if (!silent) {
+        setSeason(null);
         setAuction(null);
         setCurrentPlayer(null);
         setPlayers([]);
         setTeams([]);
         setBids([]);
         setEvents([]);
-        return;
-      }
-
-      const [{ data: auctionData }, { data: playerData }, { data: teamData }, { data: captainData }, { data: eventData }] =
-        await Promise.all([
-          supabase.from('auction').select('*').eq('id', 1).maybeSingle(),
-          supabase
-            .from('players')
-            .select('*')
-            .eq('season_id', activeSeason.id)
-            .eq('approval_status', 'Approved')
-            .order('created_at', { ascending: false }),
-          supabase.from('teams').select('*').eq('season_id', activeSeason.id).order('team_name', { ascending: true }),
-          supabase
-            .from('captains')
-            .select('id,season_id,captain_name,team_name,team_id,photo_url,budget,remaining_budget,created_at')
-            .eq('season_id', activeSeason.id),
-          supabase
-            .from('auction_events')
-            .select('*')
-            .eq('season_id', activeSeason.id)
-            .order('created_at', { ascending: false })
-            .limit(20),
-        ]);
-
-      if (!mountedRef.current) return;
-
-      const safeAuction = auctionData as Auction | null;
-      const safePlayers = (playerData || []) as Player[];
-      const safeCaptains = (captainData || []) as Captain[];
-
-      const enrichedTeams = ((teamData || []) as Team[]).map((team) => {
-        const captain =
-          safeCaptains.find((item) => item.id === team.captain_id) ||
-          safeCaptains.find((item) => item.team_id === team.id) ||
-          safeCaptains.find((item) => item.team_name === team.team_name);
-
-        return {
-          ...team,
-          captain_photo_url: captain?.photo_url || team.captain_photo_url || null,
-          captain_name: team.captain_name || captain?.captain_name || 'Captain',
-        };
-      });
-
-      setAuction(safeAuction);
-      setPlayers(safePlayers);
-      setTeams(enrichedTeams);
-      setEvents((eventData || []) as AuctionEvent[]);
-
-      if (safeAuction?.current_player_id) {
-        const selected = safePlayers.find((player) => player.id === safeAuction.current_player_id) || null;
-        setCurrentPlayer(selected);
-
-        const { data: bidData } = await supabase
-          .from('bids')
-          .select('*')
-          .eq('season_id', activeSeason.id)
-          .eq('player_id', safeAuction.current_player_id)
-          .order('created_at', { ascending: false })
-          .limit(10);
-
-        if (!mountedRef.current) return;
-        setBids((bidData || []) as Bid[]);
-      } else {
-        setCurrentPlayer(null);
-
-        const { data: bidData } = await supabase
-          .from('bids')
-          .select('*')
-          .eq('season_id', activeSeason.id)
-          .order('created_at', { ascending: false })
-          .limit(10);
-
-        if (!mountedRef.current) return;
-        setBids((bidData || []) as Bid[]);
+        setServerCurrentBid(0);
       }
     } finally {
       inFlightRef.current = false;
@@ -136,12 +101,13 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
 
   useEffect(() => {
     mountedRef.current = true;
+
     void loadAuction();
 
     const softRefresh = () => void loadAuction({ silent: true });
 
     const channel = supabase
-      .channel('apl-live-auction-v5-season-bid-lock')
+      .channel('apl-live-auction-server-state')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'seasons' }, softRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'auction' }, softRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, softRefresh)
@@ -171,11 +137,12 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
 
   const currentBid = useMemo(() => {
     return Math.max(
+      Number(serverCurrentBid || 0),
       Number(auction?.highest_bid || 0),
       Number(currentPlayer?.current_bid || 0),
       Number(currentPlayer?.base_price || 0),
     );
-  }, [auction, currentPlayer]);
+  }, [auction, currentPlayer, serverCurrentBid]);
 
   return { season, auction, currentPlayer, players, teams, bids, events, loading, currentBid, refresh: loadAuction };
 }

@@ -1,6 +1,6 @@
 -- PATH: supabase/season_import_current_data_fix.sql
--- Fix old-season import, current-season player list, and duplicate team/captain names across seasons.
--- Safe: does not delete old data.
+-- FINAL OLD SEASON IMPORT FIX
+-- Safe: does not delete data.
 
 create extension if not exists pgcrypto;
 
@@ -32,7 +32,7 @@ begin
   into active_id
   from public.seasons
   where status = 'active'
-  order by started_at desc, created_at desc
+  order by started_at desc nulls last, created_at desc
   limit 1;
 
   if active_id is not null then
@@ -44,7 +44,7 @@ begin
   end if;
 end $$;
 
--- Old schema had global unique constraints. That blocks copying the same team/captain into APL 6.
+-- Drop old global unique constraints. These stopped importing the same names into APL 6.
 alter table if exists public.teams drop constraint if exists teams_team_name_key;
 alter table if exists public.captains drop constraint if exists captains_captain_name_key;
 alter table if exists public.captains drop constraint if exists captains_team_name_key;
@@ -58,17 +58,65 @@ declare
   r record;
 begin
   for r in
-    select conrelid::regclass::text as table_name, conname
+    select
+      conrelid::regclass::text as table_name,
+      conname
     from pg_constraint
     where contype = 'u'
       and conrelid in ('public.teams'::regclass, 'public.captains'::regclass)
-      and (
-        pg_get_constraintdef(oid) ilike '%team_name%'
-        or pg_get_constraintdef(oid) ilike '%captain_name%'
+      and exists (
+        select 1
+        from unnest(conkey) as cols(attnum)
+        join pg_attribute a
+          on a.attrelid = conrelid
+         and a.attnum = cols.attnum
+        where a.attname in ('team_name', 'captain_name')
       )
   loop
     execute format('alter table %s drop constraint if exists %I', r.table_name, r.conname);
   end loop;
 end $$;
 
+do $$
+declare
+  r record;
+begin
+  for r in
+    select
+      n.nspname as schema_name,
+      idx.relname as index_name
+    from pg_index i
+    join pg_class idx on idx.oid = i.indexrelid
+    join pg_namespace n on n.oid = idx.relnamespace
+    join pg_class tbl on tbl.oid = i.indrelid
+    where tbl.oid in ('public.teams'::regclass, 'public.captains'::regclass)
+      and i.indisunique = true
+      and i.indisprimary = false
+      and pg_get_indexdef(idx.oid) ilike any (array['%team_name%', '%captain_name%'])
+  loop
+    execute format('drop index if exists %I.%I', r.schema_name, r.index_name);
+  end loop;
+end $$;
+
+create index if not exists teams_season_team_name_lookup_idx
+on public.teams (season_id, lower(team_name));
+
+create index if not exists captains_season_captain_name_lookup_idx
+on public.captains (season_id, lower(captain_name));
+
+create index if not exists captains_season_team_name_lookup_idx
+on public.captains (season_id, lower(team_name));
+
+create index if not exists players_season_name_lookup_idx
+on public.players (season_id, lower(name));
+
 select pg_notify('pgrst', 'reload schema');
+
+select
+  conrelid::regclass::text as table_name,
+  conname,
+  pg_get_constraintdef(oid) as definition
+from pg_constraint
+where contype = 'u'
+  and conrelid in ('public.teams'::regclass, 'public.captains'::regclass)
+  and pg_get_constraintdef(oid) ilike any (array['%team_name%', '%captain_name%']);

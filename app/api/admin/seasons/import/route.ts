@@ -21,7 +21,7 @@ function cleanText(value: unknown) {
 }
 
 function stripSystemFields(row: AnyRow) {
-  const copy = { ...row };
+  const copy: AnyRow = { ...row };
 
   delete copy.id;
   delete copy.created_at;
@@ -34,18 +34,43 @@ function selectRows<T extends { id?: string }>(rows: T[], ids: string[]) {
   return ids.length ? rows.filter((row) => row.id && ids.includes(row.id)) : rows;
 }
 
-async function findExistingByName(
-  supabase: any,
-  table: 'teams' | 'captains' | 'players',
-  seasonId: string,
-  nameField: 'team_name' | 'captain_name' | 'name',
-  name: string,
-) {
-  const { data } = await supabase
-    .from(table)
+async function findExistingCaptain(supabase: any, seasonId: string, captainName: string, teamName: string) {
+  const { data: byCaptain } = await supabase
+    .from('captains')
     .select('*')
     .eq('season_id', seasonId)
-    .ilike(nameField, name)
+    .ilike('captain_name', captainName)
+    .limit(1);
+
+  if (byCaptain?.[0]) return byCaptain[0];
+
+  const { data: byTeam } = await supabase
+    .from('captains')
+    .select('*')
+    .eq('season_id', seasonId)
+    .ilike('team_name', teamName)
+    .limit(1);
+
+  return byTeam?.[0] || null;
+}
+
+async function findExistingTeam(supabase: any, seasonId: string, teamName: string) {
+  const { data } = await supabase
+    .from('teams')
+    .select('*')
+    .eq('season_id', seasonId)
+    .ilike('team_name', teamName)
+    .limit(1);
+
+  return data?.[0] || null;
+}
+
+async function findExistingPlayer(supabase: any, seasonId: string, playerName: string) {
+  const { data } = await supabase
+    .from('players')
+    .select('*')
+    .eq('season_id', seasonId)
+    .ilike('name', playerName)
     .limit(1);
 
   return data?.[0] || null;
@@ -57,7 +82,7 @@ async function saveCaptainCopy(supabase: any, oldCaptain: AnyRow, activeSeasonId
 
   if (!captainName || !teamName) return null;
 
-  const existing = await findExistingByName(supabase, 'captains', activeSeasonId, 'captain_name', captainName);
+  const existing = await findExistingCaptain(supabase, activeSeasonId, captainName, teamName);
 
   const payload: AnyRow = {
     ...stripSystemFields(oldCaptain),
@@ -69,8 +94,9 @@ async function saveCaptainCopy(supabase: any, oldCaptain: AnyRow, activeSeasonId
 
   if (!payload.budget) payload.budget = 50000;
   if (!payload.remaining_budget) payload.remaining_budget = payload.budget;
+
   if (!payload.password_hash) {
-    // Fallback only for broken old captain rows. Admin can reset later from team form.
+    // Fallback only for broken old rows. Admin can reset password later from Add Team + Captain form.
     payload.password_hash = '$2a$12$KIXr19AlfWHFjzPbqmV.Seh2oqhrZotvEjfYDQyEWW4m9m7BHTD8K';
   }
 
@@ -83,7 +109,12 @@ async function saveCaptainCopy(supabase: any, oldCaptain: AnyRow, activeSeasonId
 
   const { data, error } = await supabase.from('captains').insert(payload).select('*').single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw new Error(
+      `${error.message}. If this says duplicate key, run supabase/season_import_current_data_fix.sql again. If it says ON CONFLICT, redeploy this new route.`,
+    );
+  }
+
   return data;
 }
 
@@ -92,7 +123,7 @@ async function saveTeamCopy(supabase: any, oldTeam: AnyRow, copiedCaptain: AnyRo
 
   if (!teamName) return null;
 
-  const existing = await findExistingByName(supabase, 'teams', activeSeasonId, 'team_name', teamName);
+  const existing = await findExistingTeam(supabase, activeSeasonId, teamName);
 
   const payload: AnyRow = {
     ...stripSystemFields(oldTeam),
@@ -106,28 +137,37 @@ async function saveTeamCopy(supabase: any, oldTeam: AnyRow, copiedCaptain: AnyRo
   if (!payload.remaining_budget) payload.remaining_budget = payload.budget;
   if (!payload.max_players) payload.max_players = 4;
 
-  let team: AnyRow | null = null;
-
   if (existing?.id) {
     const { data, error } = await supabase.from('teams').update(payload).eq('id', existing.id).select('*').single();
 
     if (error) throw new Error(error.message);
-    team = data;
-  } else {
-    const { data, error } = await supabase.from('teams').insert(payload).select('*').single();
 
-    if (error) throw new Error(error.message);
-    team = data;
+    if (data?.id && copiedCaptain?.id) {
+      await supabase
+        .from('captains')
+        .update({ team_id: data.id, team_name: data.team_name, season_id: activeSeasonId })
+        .eq('id', copiedCaptain.id);
+    }
+
+    return data;
   }
 
-  if (team?.id && copiedCaptain?.id) {
+  const { data, error } = await supabase.from('teams').insert(payload).select('*').single();
+
+  if (error) {
+    throw new Error(
+      `${error.message}. If this says duplicate key, run supabase/season_import_current_data_fix.sql again. If it says ON CONFLICT, redeploy this new route.`,
+    );
+  }
+
+  if (data?.id && copiedCaptain?.id) {
     await supabase
       .from('captains')
-      .update({ team_id: team.id, team_name: team.team_name, season_id: activeSeasonId })
+      .update({ team_id: data.id, team_name: data.team_name, season_id: activeSeasonId })
       .eq('id', copiedCaptain.id);
   }
 
-  return team;
+  return data;
 }
 
 function findCaptainForTeam(oldTeam: AnyRow, oldCaptains: AnyRow[]) {
@@ -204,7 +244,7 @@ async function copyApprovedPlayers(supabase: any, oldPlayers: AnyRow[], selected
 
     if (!playerName) continue;
 
-    const existing = await findExistingByName(supabase, 'players', activeSeasonId, 'name', playerName);
+    const existing = await findExistingPlayer(supabase, activeSeasonId, playerName);
 
     if (existing?.id) continue;
 
@@ -289,7 +329,6 @@ export async function POST(request: Request) {
         await copyTeamWithCaptain(supabase, team, oldCaptains || [], activeSeason.id, output);
       }
 
-      // Copy captains that are not connected to a copied team.
       for (const captain of oldCaptains || []) {
         const alreadyCopied = output.captains.some(
           (item: any) => cleanText(item.captain_name).toLowerCase() === cleanText(captain.captain_name).toLowerCase(),
@@ -309,7 +348,7 @@ export async function POST(request: Request) {
       {
         error:
           error instanceof Error
-            ? `${error.message}. If this mentions duplicate team/captain name, run supabase/season_import_current_data_fix.sql once.`
+            ? error.message
             : 'Import failed.',
       },
       { status: 500 },

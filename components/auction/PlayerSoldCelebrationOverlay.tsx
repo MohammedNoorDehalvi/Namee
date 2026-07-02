@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Hammer, PartyPopper, Sparkles } from 'lucide-react';
 
@@ -45,7 +45,36 @@ function mulberry32(seed: number) {
   };
 }
 
-function createCelebrationParticles(seed: string): CelebrationParticle[] {
+function useViewportMetrics() {
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const updateViewport = () => {
+      setViewport({
+        width: window.innerWidth || 0,
+        height: window.innerHeight || 0,
+      });
+    };
+
+    updateViewport();
+
+    window.addEventListener('resize', updateViewport);
+    window.addEventListener('orientationchange', updateViewport);
+
+    const visualViewport = window.visualViewport;
+    visualViewport?.addEventListener('resize', updateViewport);
+
+    return () => {
+      window.removeEventListener('resize', updateViewport);
+      window.removeEventListener('orientationchange', updateViewport);
+      visualViewport?.removeEventListener('resize', updateViewport);
+    };
+  }, []);
+
+  return viewport;
+}
+
+function createCelebrationParticles(seed: string, count: number, viewportScale: number): CelebrationParticle[] {
   const random = mulberry32(hashString(seed));
 
   const colors = [
@@ -57,14 +86,14 @@ function createCelebrationParticles(seed: string): CelebrationParticle[] {
     'linear-gradient(135deg, rgba(167,139,250,1), rgba(255,255,255,1))',
   ];
 
-  return Array.from({ length: 48 }, (_, index) => ({
+  return Array.from({ length: count }, (_, index) => ({
     id: `${seed}-${index}`,
-    left: 4 + random() * 92,
-    top: -18 - random() * 14,
-    size: 5 + random() * 9,
-    duration: 2.1 + random() * 0.75,
+    left: 2 + random() * 96,
+    top: -22 - random() * 12,
+    size: (4.5 + random() * 8.5) * viewportScale,
+    duration: 2.1 + random() * 0.9,
     delay: random() * 0.45,
-    drift: (random() - 0.5) * 240,
+    drift: (random() - 0.5) * (220 + viewportScale * 70),
     rotate: 180 + random() * 600,
     color: colors[index % colors.length],
   }));
@@ -95,44 +124,77 @@ function TeamLogo({
 
 export function PlayerSoldCelebrationOverlay({ celebration, particles: providedParticles }: Props) {
   const reduceMotion = useReducedMotion();
+  const viewport = useViewportMetrics();
+
+  const viewportScale = useMemo(() => {
+    const width = viewport.width || 1440;
+    const height = viewport.height || 900;
+    const rawScale = Math.min(width / 1280, height / 840);
+    return Math.max(0.72, Math.min(1.08, rawScale));
+  }, [viewport.height, viewport.width]);
+
+  const particleCount = useMemo(() => {
+    return Math.max(24, Math.min(48, Math.round(24 + viewportScale * 18)));
+  }, [viewportScale]);
 
   const particles = useMemo(
-    () => providedParticles || (celebration ? createCelebrationParticles(celebration.id) : []),
-    [celebration, providedParticles],
+    () => providedParticles || (celebration ? createCelebrationParticles(celebration.id, particleCount, viewportScale) : []),
+    [celebration, particleCount, providedParticles, viewportScale],
   );
 
+  const cardWidth = useMemo(() => `min(92vw, ${Math.min(46, 46 * viewportScale).toFixed(2)}rem)`, [viewportScale]);
+  const cardMaxHeight = useMemo(() => `min(86svh, ${Math.min(44, 44 * viewportScale).toFixed(2)}rem)`, [viewportScale]);
+
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {celebration && (
         <motion.div
           key={celebration.id}
+          role="presentation"
+          aria-hidden="true"
           className="pointer-events-none fixed inset-0 z-[80] overflow-hidden"
+          style={{
+            paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+            paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
+            paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+            paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
+          }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
         >
           <motion.div
             className="absolute inset-0 bg-black/45 backdrop-blur-[2px] sm:backdrop-blur-[3px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
           />
 
           <motion.div
-            className="absolute left-1/2 top-1/2 h-[clamp(16rem,48vw,38rem)] w-[clamp(16rem,48vw,38rem)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-400/15 blur-[clamp(70px,14vw,120px)]"
-            initial={{ scale: 0.82, opacity: 0.18 }}
-            animate={reduceMotion ? { opacity: 0.22 } : { scale: [0.82, 1.06, 0.95], opacity: [0.18, 0.4, 0.26] }}
+            className="absolute left-1/2 top-1/2 rounded-full bg-emerald-400/15 blur-[clamp(64px,14vw,120px)]"
+            style={{
+              width: `min(52vw, ${Math.min(34, 34 * viewportScale).toFixed(2)}rem)`,
+              height: `min(52vw, ${Math.min(34, 34 * viewportScale).toFixed(2)}rem)`,
+            }}
+            initial={{ scale: 0.82, opacity: 0.18, x: '-50%', y: '-50%' }}
+            animate={reduceMotion ? { opacity: 0.22, x: '-50%', y: '-50%' } : { scale: [0.82, 1.06, 0.95], opacity: [0.18, 0.42, 0.26], x: '-50%', y: '-50%' }}
             transition={{ duration: 3, ease: 'easeInOut' }}
           />
           <motion.div
-            className="absolute right-[-8vw] top-[-8vw] h-[clamp(10rem,26vw,22rem)] w-[clamp(10rem,26vw,22rem)] rounded-full bg-yellow-300/10 blur-[clamp(60px,12vw,100px)]"
+            className="absolute right-[-8vw] top-[-8vw] rounded-full bg-yellow-300/10 blur-[clamp(56px,12vw,100px)]"
+            style={{
+              width: `min(28vw, ${Math.min(22, 22 * viewportScale).toFixed(2)}rem)`,
+              height: `min(28vw, ${Math.min(22, 22 * viewportScale).toFixed(2)}rem)`,
+            }}
             initial={{ scale: 0.7, opacity: 0.12 }}
             animate={reduceMotion ? { opacity: 0.18 } : { scale: [0.7, 1, 0.85], opacity: [0.12, 0.32, 0.18] }}
             transition={{ duration: 3, ease: 'easeInOut' }}
           />
 
           <motion.div
-            className="absolute left-1/2 top-[max(8svh,1.5rem)] -translate-x-1/2 rounded-full border border-yellow-300/20 bg-yellow-300/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.34em] text-yellow-200 shadow-[0_0_40px_rgba(250,204,21,0.2)] sm:px-5 sm:py-2.5 sm:text-xs"
+            className="absolute left-1/2 top-[max(5svh,1rem)] -translate-x-1/2 rounded-full border border-yellow-300/20 bg-yellow-300/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.34em] text-yellow-200 shadow-[0_0_40px_rgba(250,204,21,0.2)] sm:px-5 sm:py-2.5 sm:text-xs"
             initial={{ y: -18, opacity: 0, scale: 0.86 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: -16, opacity: 0, scale: 0.92 }}
@@ -173,14 +235,15 @@ export function PlayerSoldCelebrationOverlay({ celebration, particles: providedP
           ))}
 
           <motion.div
-            className="absolute left-1/2 top-1/2 w-[min(94vw,46rem)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[1.6rem] border border-white/15 bg-black/80 px-4 py-5 shadow-[0_24px_100px_rgba(0,0,0,0.68)] backdrop-blur-2xl sm:rounded-[2rem] sm:px-5 sm:py-6 md:px-8 md:py-8"
+            className="absolute left-1/2 top-1/2 w-[min(92vw,46rem)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[1.6rem] border border-white/15 bg-black/80 px-4 py-5 shadow-[0_24px_100px_rgba(0,0,0,0.68)] backdrop-blur-2xl sm:rounded-[2rem] sm:px-5 sm:py-6 md:px-8 md:py-8"
+            style={{ width: cardWidth, maxHeight: cardMaxHeight }}
             initial={{ scale: 0.72, y: 26, opacity: 0 }}
             animate={reduceMotion ? { scale: 1, y: 0, opacity: 1 } : { scale: 1, y: 0, opacity: 1 }}
-            exit={{ scale: 0.92, y: 16, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 180, damping: 20 }}
+            exit={{ scale: 0.94, y: 16, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 180, damping: 22 }}
           >
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(250,204,21,0.12),transparent_50%),radial-gradient(circle_at_bottom_right,rgba(74,222,128,0.12),transparent_38%)]" />
-            <div className="relative z-10 grid gap-5 md:grid-cols-[auto,1fr,auto] md:items-center md:gap-7">
+            <div className="relative z-10 grid gap-5 md:grid-cols-[auto,minmax(0,1fr),auto] md:items-center md:gap-7">
               <motion.div
                 className="relative flex h-20 w-20 items-center justify-center rounded-[1.4rem] border border-orange-300/30 bg-orange-300/10 text-orange-200 shadow-[0_0_35px_rgba(251,146,60,0.28)] sm:h-24 sm:w-24 md:h-28 md:w-28"
                 animate={reduceMotion ? undefined : { rotate: [0, -14, 12, -8, 0], y: [0, -8, 0] }}
@@ -190,12 +253,12 @@ export function PlayerSoldCelebrationOverlay({ celebration, particles: providedP
                 <Hammer size={reduceMotion ? 30 : 40} strokeWidth={2.1} />
               </motion.div>
 
-              <div className="min-w-0 text-center md:text-left">
+              <div className="min-w-0 text-center md:max-w-[min(100%,24rem)] md:text-left">
                 <div className="inline-flex items-center gap-2 rounded-full border border-green-300/20 bg-green-300/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] text-green-200 sm:text-[11px]">
                   <Sparkles size={14} />
                   SOLD TO
                 </div>
-                <h3 className="mt-4 break-words text-[clamp(2rem,6.2vw,4.75rem)] font-black uppercase tracking-tight text-white leading-[0.92]">
+                <h3 className="mt-4 break-words text-[clamp(1.85rem,4.1vw,4.5rem)] font-black uppercase tracking-tight leading-[0.9] text-white">
                   {celebration.playerName}
                 </h3>
                 <p className="mt-3 text-base font-semibold text-white/72 sm:text-lg md:text-xl">{celebration.teamName}</p>

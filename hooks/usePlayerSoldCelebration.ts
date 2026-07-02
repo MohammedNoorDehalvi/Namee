@@ -19,6 +19,8 @@ type Options = {
   fallbackTeam?: Team | null;
 };
 
+const CELEBRATION_VISIBLE_MS = 3000;
+
 function resolveTeam(
   event: AuctionEvent,
   players: Player[],
@@ -45,6 +47,7 @@ export function usePlayerSoldCelebration({ events, players, teams, loading, fall
   const [queue, setQueue] = useState<SaleCelebration[]>([]);
   const seenSoldEventIdsRef = useRef<Set<string>>(new Set());
   const hasPrimedSnapshotRef = useRef(false);
+  const dismissTimerRef = useRef<number | null>(null);
 
   const soldEvents = useMemo(
     () =>
@@ -93,10 +96,36 @@ export function usePlayerSoldCelebration({ events, players, teams, loading, fall
     const [nextCelebration, ...remaining] = queue;
     setCelebration(nextCelebration);
     setQueue(remaining);
-
-    const timeoutId = window.setTimeout(() => setCelebration(null), 3000);
-    return () => window.clearTimeout(timeoutId);
   }, [celebration, queue]);
+
+  useEffect(() => {
+    if (!celebration) return;
+
+    if (dismissTimerRef.current !== null) {
+      window.clearTimeout(dismissTimerRef.current);
+    }
+
+    dismissTimerRef.current = window.setTimeout(() => {
+      setCelebration(null);
+      dismissTimerRef.current = null;
+    }, CELEBRATION_VISIBLE_MS);
+
+    return () => {
+      if (dismissTimerRef.current !== null) {
+        window.clearTimeout(dismissTimerRef.current);
+        dismissTimerRef.current = null;
+      }
+    };
+  }, [celebration]);
+
+  useEffect(() => {
+    return () => {
+      if (dismissTimerRef.current !== null) {
+        window.clearTimeout(dismissTimerRef.current);
+        dismissTimerRef.current = null;
+      }
+    };
+  }, []);
 
   return { celebration };
 }

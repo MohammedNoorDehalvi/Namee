@@ -183,7 +183,7 @@ function buildLayout(viewport: ViewportMetrics): LayoutMetrics {
 
   return {
     scale,
-    particleCount: Math.round(clamp(24 + scale * 16 + (isPhone ? -2 : 2), 22, 44)),
+    particleCount: Math.round(clamp(40 + scale * 24 + (isPhone ? 6 : 10), 36, 72)),
     cardWidth,
     cardMaxHeight,
     orbSize: Math.round(clamp(shortSide * (isPhone ? 0.54 : 0.42), 220, 540)),

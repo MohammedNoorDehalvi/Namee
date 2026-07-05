@@ -53,7 +53,7 @@ function createCelebrationParticles(seed: string): CelebrationParticle[] {
     'linear-gradient(135deg, rgba(167,139,250,1), rgba(255,255,255,1))',
   ];
 
-  return Array.from({ length: 42 }, (_, index) => ({
+  return Array.from({ length: 72 }, (_, index) => ({
     id: `${seed}-${index}`,
     left: random() * 100,
     top: -12 - random() * 20,

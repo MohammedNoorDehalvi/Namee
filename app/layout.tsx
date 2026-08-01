@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Outfit, Playfair_Display } from 'next/font/google';
 import './globals.css';
-import './liquid.css';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { AppToaster } from '@/components/ui/AppToaster';
@@ -43,21 +42,17 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#071d31',
+  themeColor: '#030712',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable} ${playfair.variable}`}>
       <body>
-        <div className="arena-background" aria-hidden="true" />
-        <div className="arena-lights" aria-hidden="true" />
-        <div className="app-shell">
-          <Navbar />
-          <SeasonPublicGate>{children}</SeasonPublicGate>
-          <Footer />
-          <AppToaster />
-        </div>
+        <Navbar />
+        <SeasonPublicGate>{children}</SeasonPublicGate>
+        <Footer />
+        <AppToaster />
       </body>
     </html>
   );

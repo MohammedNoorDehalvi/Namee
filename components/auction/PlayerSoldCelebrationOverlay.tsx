@@ -204,7 +204,7 @@ export function PlayerSoldCelebrationOverlay({ celebration, particles: providedP
     setPortalTarget(document.body);
   }, []);
 
-  const layout = useMemo(() => buildLayout(viewport), [viewport.height, viewport.ready, viewport.width]);
+  const layout = useMemo(() => buildLayout(viewport), [viewport]);
 
   const particles = useMemo(
     () => providedParticles || (celebration ? createCelebrationParticles(celebration.id, layout.particleCount, layout.scale) : []),

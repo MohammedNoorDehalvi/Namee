@@ -175,7 +175,7 @@ export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }
   }
 
   return (
-    <div className="liquid-auction relative space-y-8">
+    <div className="relative space-y-8">
       <PlayerSoldCelebrationOverlay celebration={soldCelebration} />
 
       <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur md:p-8">

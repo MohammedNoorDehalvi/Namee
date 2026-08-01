@@ -40,8 +40,8 @@ export function LoginCard({ type }: { type: 'captain' | 'admin' }) {
   }
 
   return (
-    <main className="login-stage min-h-[calc(100vh-4rem)] bg-stadium px-4 py-16">
-      <form onSubmit={onSubmit} className="login-card glass-card mx-auto max-w-md rounded-[2rem] p-6 sm:p-8">
+    <main className="min-h-[calc(100vh-4rem)] bg-stadium px-4 py-16">
+      <form onSubmit={onSubmit} className="glass-card mx-auto max-w-md rounded-[2rem] p-6 sm:p-8">
         <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-apl-gold/15 text-apl-gold">
           <LockKeyhole className="h-7 w-7" />
         </div>

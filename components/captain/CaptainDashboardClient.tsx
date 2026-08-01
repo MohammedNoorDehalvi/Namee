@@ -122,7 +122,7 @@ export function CaptainDashboardClient() {
   return (
     <>
       <PlayerSoldCelebrationOverlay celebration={celebration} />
-      <main className="captain-command-center section-shell space-y-6 overflow-x-hidden">
+      <main className="section-shell space-y-6 overflow-x-hidden">
       <section className="glass-card p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-4">

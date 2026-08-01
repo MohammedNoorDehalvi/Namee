@@ -1,2 +1,4 @@
 node_modules/
 .next/
+.agents/
+spline-3d-skill.zip

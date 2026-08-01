@@ -28,7 +28,7 @@ const config: Config = {
       },
       backgroundImage: {
         stadium:
-          "url('/images/apl-stadium-night.png'), radial-gradient(circle at top, rgba(22,163,74,0.25), transparent 35%), radial-gradient(circle at 80% 20%, rgba(246,195,67,0.2), transparent 32%), linear-gradient(135deg, rgba(3,6,5,0.75), rgba(10,21,16,0.85))",
+          'radial-gradient(circle at top, rgba(22,163,74,0.25), transparent 35%), radial-gradient(circle at 80% 20%, rgba(246,195,67,0.2), transparent 32%), linear-gradient(135deg, #030605, #0A1510 50%, #030605)',
       },
       keyframes: {
         'shimmer': {

@@ -82,7 +82,7 @@ export function TeamsClient() {
   }
 
   return (
-    <div className="team-command-center grid gap-8">
+    <div className="grid gap-8">
       <div className="flex flex-col gap-3 rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.25em] text-apl-gold">Current Season</p>
@@ -105,7 +105,7 @@ function TeamCard({ team }: { team: TeamGroup }) {
   const spent = Math.max(0, Number(team.budget || 0) - Number(team.remaining_budget || 0));
 
   return (
-    <section className="team-glass-card rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur md:p-8">
+    <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur md:p-8">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
         <LogoAvatar src={team.logo_url} label={team.team_name} size="xl" />
 

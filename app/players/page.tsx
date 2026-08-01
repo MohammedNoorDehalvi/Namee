@@ -10,7 +10,7 @@ import { useApprovedPlayers } from '@/hooks/usePlayers';
 export default function PlayersPage() {
   const { filteredPlayers, loading, search, setSearch, role, setRole } = useApprovedPlayers();
   return (
-    <section className="surface-page px-4 py-14 sm:px-6">
+    <section className="px-4 py-14 sm:px-6">
       <SectionHeading eyebrow="Approved Players" title="APL Player List" subtitle="Normal users can view approved players and live updates. Only captains can bid after login." />
       <PlayerFilters search={search} setSearch={setSearch} role={role} setRole={setRole} />
       <div className="mx-auto mt-10 max-w-7xl">

@@ -100,7 +100,7 @@ export function PlayerRegistrationForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="registration-card glass-card mx-auto max-w-2xl rounded-[2rem] p-6 sm:p-8">
+    <form onSubmit={onSubmit} className="glass-card mx-auto max-w-2xl rounded-[2rem] p-6 sm:p-8">
       <div className="mb-6 flex items-center gap-3">
         <div className="rounded-2xl bg-apl-gold/15 p-3 text-apl-gold">
           <ImagePlus className="h-6 w-6" />

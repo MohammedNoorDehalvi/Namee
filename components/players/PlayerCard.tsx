@@ -5,7 +5,7 @@ import { formatMoney, initials, statusClass } from '@/lib/format';
 
 export function PlayerCard({ player }: { player: Player }) {
   return (
-    <article className="player-orbital-card scroll-3d-card glass-card overflow-hidden rounded-[2rem]">
+    <article className="scroll-3d-card glass-card overflow-hidden rounded-[2rem]">
       <div className="relative h-56 bg-gradient-to-br from-apl-gold/20 to-apl-green/20">
         {player.photo_url ? <Image src={player.photo_url} alt={player.name} fill className="object-cover" /> : <div className="grid h-full place-items-center text-5xl font-black text-apl-gold">{initials(player.name)}</div>}
         <div className="absolute left-4 top-4"><span className={`badge ${statusClass(player.status)}`}>{player.status}</span></div>

@@ -340,7 +340,7 @@ export function AdminPanel() {
   }
 
   return (
-    <div className="admin-command-center mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 text-white sm:px-6 lg:px-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 text-white sm:px-6 lg:px-8">
       <section className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.09] to-apl-green/10 p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
         <span className="inline-flex rounded-full border border-apl-gold/25 bg-apl-gold/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-apl-gold">
           Admin Control

@@ -472,7 +472,7 @@ select.input option {
 .home-hero {
   position: relative;
   height: 145svh;
-  background: var(--ink);
+  background: transparent;
 }
 
 .home-hero__sticky {
@@ -493,7 +493,7 @@ select.input option {
     radial-gradient(ellipse 80% 60% at 50% 35%, rgba(54, 105, 63, 0.22), transparent),
     radial-gradient(ellipse 50% 40% at 72% 28%, rgba(245, 200, 92, 0.10), transparent),
     radial-gradient(ellipse 60% 50% at 28% 70%, rgba(245, 200, 92, 0.06), transparent),
-    linear-gradient(180deg, #020403, #05100a 40%, #030605);
+    linear-gradient(180deg, rgba(2, 4, 3, 0.3) 0%, rgba(5, 16, 10, 0.45) 40%, rgba(3, 6, 5, 0.8) 100%);
   will-change: transform;
 }
 
@@ -793,8 +793,8 @@ select.input option {
   position: relative;
   z-index: 10;
   overflow: hidden;
-  background: var(--paper);
-  color: #0a0d0b;
+  background: transparent;
+  color: var(--text-primary);
 }
 
 .section-shell {

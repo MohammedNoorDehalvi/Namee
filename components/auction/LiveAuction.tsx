@@ -11,6 +11,7 @@ import { formatMoney, initials } from '@/lib/format';
 import type { Player, Team } from '@/lib/types';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { GlassCard, GlassButton } from '@/components/ui/liquid-glass';
 
 type SaleCelebration = {
   id: string;
@@ -178,20 +179,20 @@ export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }
     <div className="relative space-y-8">
       <PlayerSoldCelebrationOverlay celebration={soldCelebration} />
 
-      <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur md:p-8">
+      <GlassCard className="p-6 md:p-8 rounded-3xl">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-yellow-300/20 bg-yellow-300/10 px-4 py-2 text-xs font-black uppercase tracking-wider text-yellow-300">
+            <p className="inline-flex items-center gap-2 rounded-full bg-amber-400/20 px-4 py-2 text-xs font-black uppercase tracking-wider text-amber-300">
               <Radio size={15} /> {auction?.auction_status || 'NOT_STARTED'} Auction
             </p>
-            <h1 className="mt-4 text-4xl font-black text-white md:text-6xl">APL Live Auction</h1>
-            <p className="mt-3 max-w-2xl text-white/60">
+            <h1 className="mt-4 text-4xl font-black text-white md:text-6xl font-display">APL Live Auction</h1>
+            <p className="mt-3 max-w-2xl text-slate-200">
               Realtime current player, bids, teams, budgets, events and final squads.
             </p>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
-            <p className="text-sm text-white/45">Highest Bidder</p>
+          <div className="rounded-3xl bg-white/10 p-4 border border-white/10">
+            <p className="text-sm text-slate-300">Highest Bidder</p>
             <div className="mt-2 flex items-center gap-3">
               <LogoAvatar src={highestTeam?.logo_url} label={highestTeam?.team_name || 'No bids'} size="md" />
               <div>
@@ -200,12 +201,12 @@ export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }
                     ? `${auction.highest_team_name} / ${auction.highest_bidder_captain_name || 'Captain'}`
                     : 'No bids yet'}
                 </p>
-                <p className="text-sm text-white/50">Current bid: {formatMoney(currentBid)}</p>
+                <p className="text-sm text-slate-300">Current bid: {formatMoney(currentBid)}</p>
               </div>
             </div>
           </div>
         </div>
-      </section>
+      </GlassCard>
 
       {auction?.auction_status === 'ENDED' ? (
         <FinalReport teams={leaderboard} players={soldPlayers} unsoldPlayers={unsoldPlayers} mostExpensive={mostExpensive} />
@@ -218,12 +219,13 @@ export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }
             <EventPanel events={events} />
             <UnsoldPanel players={unsoldPlayers} />
             {mode === 'public' && (
-              <Link
-                href="/captain"
-                className="block rounded-full bg-gradient-to-r from-yellow-300 to-green-400 px-6 py-4 text-center font-black text-black shadow-lg shadow-green-500/20"
+              <GlassButton
+                href="/captain-login"
+                variant="emerald"
+                className="w-full py-4 text-center font-black text-slate-950 rounded-full"
               >
-                Captain Login to Bid
-              </Link>
+                <span>Captain Login to Bid</span>
+              </GlassButton>
             )}
           </div>
         </div>
@@ -243,14 +245,14 @@ function CurrentPlayerCard({
 }) {
   if (!player) {
     return (
-      <div className="flex min-h-[420px] items-center justify-center rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 text-center shadow-2xl backdrop-blur">
+      <GlassCard className="flex min-h-[420px] items-center justify-center p-6 text-center">
         <EmptyState title="No current player" description="Waiting for admin to select the next player." />
-      </div>
+      </GlassCard>
     );
   }
 
   return (
-    <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur">
+    <GlassCard className="overflow-hidden p-6 md:p-8">
       <div className="p-6 md:p-8">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
           <LogoAvatar src={player.photo_url} label={player.name} size="xl" />
@@ -270,7 +272,7 @@ function CurrentPlayerCard({
           <BigStat label="Status" value={player.auction_status || player.status} />
         </div>
       </div>
-    </section>
+    </GlassCard>
   );
 }
 
@@ -352,35 +354,35 @@ function BidHistory({
 
 function EventPanel({ events }: { events: { id: string; message: string; created_at: string }[] }) {
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur">
-      <h3 className="flex items-center gap-2 font-black text-white">
-        <Users size={18} className="text-green-300" /> Live Messages
+    <GlassCard className="p-5 rounded-3xl">
+      <h3 className="flex items-center gap-2 font-black text-white font-display">
+        <Users size={18} className="text-emerald-300" /> Live Messages
       </h3>
       <div className="mt-4 grid gap-2">
-        {events.length === 0 && <p className="text-sm text-white/50">No auction messages yet.</p>}
+        {events.length === 0 && <p className="text-sm text-slate-300">No auction messages yet.</p>}
         {events.map((event) => (
-          <p key={event.id} className="rounded-2xl bg-black/15 p-3 text-sm text-white/65">
+          <p key={event.id} className="rounded-2xl bg-white/10 p-3 text-sm text-slate-200">
             {event.message}
           </p>
         ))}
       </div>
-    </section>
+    </GlassCard>
   );
 }
 
 function UnsoldPanel({ players }: { players: Player[] }) {
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur">
-      <h3 className="font-black text-white">Unsold Players</h3>
+    <GlassCard className="p-5 rounded-3xl">
+      <h3 className="font-black text-white font-display">Unsold Players</h3>
       <div className="mt-4 grid gap-2">
-        {players.length === 0 && <p className="text-sm text-white/50">No unsold players yet.</p>}
+        {players.length === 0 && <p className="text-sm text-slate-300">No unsold players yet.</p>}
         {players.slice(0, 8).map((player) => (
-          <p key={player.id} className="rounded-2xl bg-black/15 p-3 text-sm text-white/65">
+          <p key={player.id} className="rounded-2xl bg-white/10 p-3 text-sm text-slate-200">
             {player.name}
           </p>
         ))}
       </div>
-    </section>
+    </GlassCard>
   );
 }
 

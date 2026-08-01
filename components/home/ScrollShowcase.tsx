@@ -8,6 +8,7 @@ import { SaaSFeatures } from './SaaSFeatures';
 import { AuctionCalculator } from './AuctionCalculator';
 import { FaqSection } from './FaqSection';
 import { SaaSFooterCTA } from './SaaSFooterCTA';
+import { GlassCard } from '@/components/ui/liquid-glass';
 
 const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
 
@@ -45,26 +46,32 @@ export function ScrollShowcase() {
   const reduceMotion = useReducedMotion();
 
   return (
-    <main id="experience" className="home-experience bg-slate-950 text-white">
-      {/* ── 1. MANIFESTO SECTION ─────────────────────── */}
-      <section className="py-24 px-4 md:px-6 max-w-7xl mx-auto border-b border-white/5">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-          <div className="lg:col-span-4 space-y-2">
-            <span className="text-amber-400 font-extrabold text-xs tracking-widest uppercase font-display">02 / LEAGUE MANIFESTO</span>
-            <p className="text-slate-400 text-sm">A championship is built one high-stakes decision at a time.</p>
-          </div>
+    <main id="experience" className="home-experience bg-transparent text-white">
+      {/* ── 1. MANIFESTO SECTION IN LIQUID GLASS ─────── */}
+      <section className="py-24 px-4 md:px-6 max-w-7xl mx-auto">
+        <GlassCard className="p-8 md:p-14 rounded-3xl">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            <div className="lg:col-span-4 space-y-3">
+              <span className="px-3.5 py-1.5 rounded-full bg-amber-400/20 text-amber-300 font-extrabold text-xs tracking-widest uppercase font-display inline-block">
+                02 / LEAGUE MANIFESTO
+              </span>
+              <p className="text-slate-200 text-sm leading-relaxed">
+                A championship is built one high-stakes decision at a time.
+              </p>
+            </div>
 
-          <div className="lg:col-span-8 space-y-6">
-            <h2 className="text-3xl sm:text-5xl md:text-6xl font-extrabold font-display tracking-tight leading-tight">
-              ONE ARENA. <br />
-              EVERY BID. <br />
-              <span className="text-gradient-cyan">IN REAL TIME.</span>
-            </h2>
-            <p className="text-slate-300 text-base md:text-lg leading-relaxed max-w-2xl">
-              APL turns team building into a live digital spectacle—precise enough for franchise captains, transparent enough for spectators, and dramatic enough to define the whole season.
-            </p>
+            <div className="lg:col-span-8 space-y-6">
+              <h2 className="text-3xl sm:text-5xl md:text-6xl font-extrabold font-display tracking-tight leading-tight text-white">
+                ONE ARENA. <br />
+                EVERY BID. <br />
+                <span className="text-gradient-cyan">IN REAL TIME.</span>
+              </h2>
+              <p className="text-slate-100 text-base md:text-xl leading-relaxed max-w-2xl">
+                APL turns team building into a live digital spectacle—precise enough for franchise captains, transparent enough for spectators, and dramatic enough to define the whole season.
+              </p>
+            </div>
           </div>
-        </div>
+        </GlassCard>
       </section>
 
       {/* ── 2. INTERACTIVE LIVE BID SIMULATOR ───────── */}
@@ -74,19 +81,19 @@ export function ScrollShowcase() {
       <SaaSFeatures />
 
       {/* ── 4. DUAL TRACK MARQUEE RIBBON ─────────────── */}
-      <div className="py-8 bg-slate-900/50 border-y border-white/5 overflow-hidden select-none opacity-80">
+      <div className="py-8 bg-slate-950/40 border-y border-white/10 overflow-hidden select-none backdrop-blur-md">
         <div className="flex whitespace-nowrap text-sm font-bold tracking-widest uppercase animate-marquee">
           <span className="text-amber-400 mx-4">{RIBBON_GOLD}{RIBBON_GOLD}</span>
         </div>
-        <div className="flex whitespace-nowrap text-sm font-semibold tracking-widest uppercase text-cyan-400 opacity-75 mt-2 animate-marquee-reverse">
+        <div className="flex whitespace-nowrap text-sm font-semibold tracking-widest uppercase text-cyan-400 opacity-90 mt-2 animate-marquee-reverse">
           <span className="mx-4">{RIBBON_WHITE}{RIBBON_WHITE}</span>
         </div>
       </div>
 
       {/* ── 5. THE AUCTION JOURNEY TIMELINE ──────────── */}
       <section className="py-24 max-w-7xl mx-auto px-4 md:px-6">
-        <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-400 text-xs font-semibold uppercase tracking-wider">
+        <GlassCard className="p-8 mb-12 text-center max-w-3xl mx-auto">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-400/20 text-cyan-300 text-xs font-semibold uppercase tracking-wider mb-4">
             <Radio className="w-3.5 h-3.5" />
             <span>HOW IT WORKS</span>
           </div>
@@ -94,7 +101,7 @@ export function ScrollShowcase() {
             The Journey From Player to <br />
             <span className="text-gradient-gold">Household Name</span>
           </h2>
-        </div>
+        </GlassCard>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {journeys.map((item, index) => {
@@ -106,26 +113,28 @@ export function ScrollShowcase() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.7, ease: EASE_OUT_EXPO, delay: index * 0.15 }}
-                className="bento-card bg-slate-900/70 border-white/10 flex flex-col justify-between space-y-6"
+                className="h-full"
               >
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-3xl font-extrabold text-slate-600 font-display">{item.number}</span>
-                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                      <Icon className="w-5 h-5" />
+                <GlassCard className="h-full flex flex-col justify-between space-y-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-3xl font-extrabold text-slate-400 font-display">{item.number}</span>
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-300">
+                        <Icon className="w-5 h-5" />
+                      </div>
                     </div>
+                    <h3 className="text-xl font-bold text-white font-display">{item.title}</h3>
+                    <p className="text-slate-200 text-sm leading-relaxed">{item.body}</p>
                   </div>
-                  <h3 className="text-xl font-bold text-white font-display">{item.title}</h3>
-                  <p className="text-slate-400 text-sm leading-relaxed">{item.body}</p>
-                </div>
 
-                <Link
-                  href={item.href}
-                  className="inline-flex items-center gap-2 text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors pt-2 group"
-                >
-                  <span>{item.label}</span>
-                  <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                </Link>
+                  <Link
+                    href={item.href}
+                    className="inline-flex items-center gap-2 text-xs font-bold text-amber-300 hover:text-amber-200 transition-colors pt-2 group"
+                  >
+                    <span>{item.label}</span>
+                    <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                  </Link>
+                </GlassCard>
               </motion.div>
             );
           })}

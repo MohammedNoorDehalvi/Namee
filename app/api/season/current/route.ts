@@ -22,7 +22,7 @@ export async function GET() {
   } catch (error) {
     return NextResponse.json(
       { season: null, error: error instanceof Error ? error.message : 'Could not load current season.' },
-      { status: 500, headers: NO_STORE_HEADERS },
+      { status: 200, headers: NO_STORE_HEADERS },
     );
   }
 }

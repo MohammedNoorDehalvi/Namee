@@ -141,7 +141,7 @@ export async function GET() {
         events: [],
         currentBid: 0,
       },
-      { status: 500, headers: NO_STORE_HEADERS },
+      { status: 200, headers: NO_STORE_HEADERS },
     );
   }
 }

@@ -5,6 +5,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { AppToaster } from '@/components/ui/AppToaster';
 import { SeasonPublicGate } from '@/components/season/SeasonPublicGate';
+import { SplineIntroOverlay } from '@/components/ui/SplineIntroOverlay';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -45,10 +46,14 @@ export const viewport: Viewport = {
   themeColor: '#030712',
 };
 
+import { GlassFilter } from '@/components/ui/liquid-glass';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable} ${playfair.variable}`}>
       <body>
+        <GlassFilter />
+        <SplineIntroOverlay />
         <Navbar />
         <SeasonPublicGate>{children}</SeasonPublicGate>
         <Footer />

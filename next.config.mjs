@@ -1,6 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  webpack: (config) => {
+    config.watchOptions = {
+      ...config.watchOptions,
+      ignored: ['**/node_modules/**', '**/.next/**', 'D:/System Volume Information/**', 'D:/$RECYCLE.BIN/**'],
+    };
+    return config;
+  },
   async headers() {
     return [
       {

@@ -83,7 +83,7 @@ html {
 body {
   min-height: 100vh;
   overflow-x: hidden;
-  background: var(--ink);
+  background: url('/image.png') center center / cover no-repeat fixed;
   color: var(--text-primary);
   font-family: var(--font-body);
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
@@ -1354,5 +1354,76 @@ select.input option {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes moveBackground {
+  from {
+    background-position: 0% 0%;
+  }
+  to {
+    background-position: 0% -1000%;
+  }
+}
+
+/* Custom Letter Animated Loader */
+.loader-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 800;
+  font-size: 1.5rem;
+  color: #ffffff;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.loader-letter {
+  display: inline-block;
+  animation: letterPulse 1.6s ease-in-out infinite;
+  background: linear-gradient(135deg, #FEF08A, #F59E0B, #22D3EE);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.loader-letter:nth-child(1) { animation-delay: 0.1s; }
+.loader-letter:nth-child(2) { animation-delay: 0.2s; }
+.loader-letter:nth-child(3) { animation-delay: 0.3s; }
+.loader-letter:nth-child(4) { animation-delay: 0.4s; }
+.loader-letter:nth-child(5) { animation-delay: 0.5s; }
+.loader-letter:nth-child(6) { animation-delay: 0.6s; }
+.loader-letter:nth-child(7) { animation-delay: 0.7s; }
+.loader-letter:nth-child(8) { animation-delay: 0.8s; }
+.loader-letter:nth-child(9) { animation-delay: 0.9s; }
+.loader-letter:nth-child(10) { animation-delay: 1.0s; }
+
+@keyframes letterPulse {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-8px) scale(1.15);
+    opacity: 1;
+    filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.6));
+  }
+}
+
+.loader {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(245, 158, 11, 0.2);
+  border-top-color: #F59E0B;
+  border-right-color: #22D3EE;
+  border-radius: 50%;
+  animation: loaderSpin 0.8s linear infinite;
+  margin-left: 0.75rem;
+}
+
+@keyframes loaderSpin {
+  to {
+    transform: rotate(360deg);
   }
 }

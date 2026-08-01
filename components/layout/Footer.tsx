@@ -3,14 +3,17 @@
 import Link from 'next/link';
 import { ArrowUp, Radio, Shield, Trophy } from 'lucide-react';
 
+import { GlassCard } from '@/components/ui/liquid-glass';
+
 export function Footer() {
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
-    <footer className="bg-slate-950 border-t border-white/10 text-slate-400 py-16 relative overflow-hidden">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 space-y-12">
+    <footer className="bg-transparent text-slate-300 py-12 relative overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 md:px-6">
+        <GlassCard className="p-8 md:p-12 rounded-3xl space-y-12">
         {/* Top Footer Grid */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
           {/* Brand & Status */}
@@ -89,7 +92,8 @@ export function Footer() {
             <ArrowUp className="w-3.5 h-3.5" />
           </button>
         </div>
-      </div>
-    </footer>
+      </GlassCard>
+    </div>
+  </footer>
   );
 }

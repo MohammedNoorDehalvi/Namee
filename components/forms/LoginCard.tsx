@@ -6,9 +6,10 @@ import { LockKeyhole } from 'lucide-react';
 import { saveSession } from '@/hooks/useSession';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from '@/components/ui/AppToaster';
-import { GlassCard, GlassButton } from '@/components/ui/liquid-glass';
 import { BorderBeam } from '@/components/ui/BorderBeam';
 import { SpotlightCard } from '@/components/ui/SpotlightCard';
+import { Meteors } from '@/components/ui/Meteors';
+import { ShimmerButton } from '@/components/ui/ShimmerButton';
 
 export function LoginCard({ type }: { type: 'captain' | 'admin' }) {
   const [name, setName] = useState('');
@@ -43,30 +44,33 @@ export function LoginCard({ type }: { type: 'captain' | 'admin' }) {
   }
 
   return (
-    <main className="min-h-[calc(100vh-4rem)] bg-transparent px-4 py-16 flex items-center justify-center">
-      <form onSubmit={onSubmit} className="w-full max-w-md">
-        <SpotlightCard spotlightColor="rgba(245, 158, 11, 0.18)" className="p-8 md:p-10 rounded-3xl space-y-6 border-white/15 bg-slate-900/90 backdrop-blur-2xl">
+    <main className="min-h-[calc(100vh-4rem)] bg-transparent px-4 py-16 flex items-center justify-center relative overflow-hidden">
+      <form onSubmit={onSubmit} className="w-full max-w-md relative z-10">
+        <SpotlightCard spotlightColor="rgba(245, 158, 11, 0.18)" className="p-8 md:p-10 rounded-[2.5rem] space-y-6 border-white/15 bg-slate-900/90 backdrop-blur-2xl relative overflow-hidden shadow-2xl">
           <BorderBeam lightColor="#F59E0B" lightWidth={260} duration={8} />
 
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-400/20 text-amber-300">
+          {/* 21st.dev Meteors Background */}
+          <Meteors number={12} />
+
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-400/20 border border-amber-400/30 text-amber-300 relative z-10 shadow-lg shadow-amber-500/10">
             <LockKeyhole className="h-7 w-7" />
           </div>
-          <div>
+          <div className="relative z-10">
             <h1 className="text-3xl font-extrabold text-white font-display">
-              {type === 'admin' ? 'Admin Login' : 'Captain Login'}
+              {type === 'admin' ? 'Admin Portal Login' : 'Captain Portal Login'}
             </h1>
-            <p className="mt-2 text-sm text-slate-200 leading-relaxed">
-              Passwords are checked through secure server API routes, not directly in the frontend.
+            <p className="mt-2 text-sm text-slate-300 leading-relaxed">
+              Authenticate into the live auction platform.
             </p>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 relative z-10">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
                 {type === 'admin' ? 'Admin Name / Email' : 'Captain Name'}
               </label>
               <input
-                className="w-full rounded-2xl bg-white/10 border border-white/15 px-4 py-3.5 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all text-sm"
+                className="w-full rounded-2xl bg-white/10 border border-white/15 px-4 py-3.5 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all text-sm font-medium"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={type === 'admin' ? 'admin@apl.com' : 'Faiz'}
@@ -77,7 +81,7 @@ export function LoginCard({ type }: { type: 'captain' | 'admin' }) {
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">Password</label>
               <input
-                className="w-full rounded-2xl bg-white/10 border border-white/15 px-4 py-3.5 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all text-sm"
+                className="w-full rounded-2xl bg-white/10 border border-white/15 px-4 py-3.5 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all text-sm font-medium"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 type="password"
@@ -87,17 +91,19 @@ export function LoginCard({ type }: { type: 'captain' | 'admin' }) {
             </div>
           </div>
 
-          <button type="submit" disabled={loading} className="w-full">
-            <GlassButton
-              variant="amber"
-              className="w-full py-4 text-slate-950 font-extrabold text-base rounded-full mt-4"
+          {/* 21st.dev ShimmerButton for Login */}
+          <div className="pt-2 relative z-10">
+            <ShimmerButton
+              type="submit"
+              disabled={loading}
+              shimmerColor="#F59E0B"
+              className="w-full py-4 justify-center"
             >
-              <span>{loading ? 'Checking...' : 'Login'}</span>
-            </GlassButton>
-          </button>
+              <span>{loading ? 'Authenticating...' : 'Login to Portal'}</span>
+            </ShimmerButton>
+          </div>
         </SpotlightCard>
       </form>
     </main>
   );
 }
-

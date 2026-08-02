@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRef } from 'react';
-import { ArrowUpRight, Gavel, Radio, Users, Zap } from 'lucide-react';
+import { ArrowUpRight, Gavel, Radio, Shield, Trophy, Users, Zap } from 'lucide-react';
 import {
   motion,
   useReducedMotion,
@@ -11,10 +11,14 @@ import {
   useTransform,
 } from 'framer-motion';
 
-import { GlassCard, GlassButton, GlassEffect } from '@/components/ui/liquid-glass';
+import { GlassCard, GlassEffect } from '@/components/ui/liquid-glass';
 import { FlipWords } from '@/components/ui/FlipWords';
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
 import { SparklesCore } from '@/components/ui/SparklesCore';
+import { RetroGrid } from '@/components/ui/RetroGrid';
+import { ShimmerButton } from '@/components/ui/ShimmerButton';
+import { OrbitingCircles } from '@/components/ui/OrbitingCircles';
+import { Meteors } from '@/components/ui/Meteors';
 
 const SplineRobotScene = dynamic(
   () => import('@/components/home/SplineRobotScene').then((m) => m.SplineRobotScene),
@@ -45,6 +49,14 @@ export function Hero3D() {
 
   return (
     <section ref={sectionRef} className="relative min-h-screen pt-28 pb-16 flex flex-col justify-between overflow-hidden bg-transparent">
+      {/* 21st.dev Retro Grid Background */}
+      <RetroGrid angle={60} className="z-0 opacity-40" />
+
+      {/* 21st.dev Background Meteors Effect */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <Meteors number={18} />
+      </div>
+
       {/* Background Sparkles Effect */}
       <div className="absolute inset-0 z-0 opacity-60 pointer-events-none">
         <SparklesCore
@@ -106,28 +118,45 @@ export function Hero3D() {
             Real-time bidding, protected team purses, and the high-stakes drama of building a championship squad — all in one arena.
           </motion.p>
 
-          {/* Liquid Glass CTA Actions */}
+          {/* 21st.dev ShimmerButton CTA Actions */}
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.9, ease: EASE_OUT_EXPO, delay: 0.45 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-5 pt-4"
           >
-            <GlassButton href="/player-registration" variant="amber" className="px-10 py-5 rounded-full text-slate-950 font-extrabold text-base">
+            <ShimmerButton href="/player-registration" shimmerColor="#F59E0B" className="px-8 py-4">
               <span>Enter Player Draft</span>
-              <ArrowUpRight className="w-5 h-5" />
-            </GlassButton>
+              <ArrowUpRight className="w-5 h-5 text-amber-300" />
+            </ShimmerButton>
 
-            <GlassButton href="/auction" variant="emerald" className="px-10 py-5 rounded-full text-white font-extrabold text-base">
+            <ShimmerButton href="/auction" shimmerColor="#10B981" className="px-8 py-4">
               <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
               <span>Watch Live Bidding</span>
-            </GlassButton>
+            </ShimmerButton>
           </motion.div>
         </motion.div>
 
-        {/* 3D Robot Spline Scene (Stadium Background) */}
-        <div className="relative w-full max-w-5xl mx-auto h-[380px] sm:h-[480px] md:h-[540px] my-8">
+        {/* 3D Robot Spline Scene with 21st.dev Orbiting Circles */}
+        <div className="relative w-full max-w-5xl mx-auto h-[380px] sm:h-[480px] md:h-[540px] my-8 flex items-center justify-center overflow-hidden">
           <SplineRobotScene />
+
+          {/* Orbiting Circles Badges */}
+          <OrbitingCircles radius={180} duration={25} delay={0}>
+            <div className="w-8 h-8 rounded-full bg-slate-900 border border-amber-400/50 flex items-center justify-center text-amber-300 shadow-lg">
+              <Trophy className="w-4 h-4" />
+            </div>
+          </OrbitingCircles>
+          <OrbitingCircles radius={180} duration={25} delay={12}>
+            <div className="w-8 h-8 rounded-full bg-slate-900 border border-cyan-400/50 flex items-center justify-center text-cyan-300 shadow-lg">
+              <Zap className="w-4 h-4" />
+            </div>
+          </OrbitingCircles>
+          <OrbitingCircles radius={280} duration={35} reverse delay={5}>
+            <div className="w-8 h-8 rounded-full bg-slate-900 border border-emerald-400/50 flex items-center justify-center text-emerald-300 shadow-lg">
+              <Shield className="w-4 h-4" />
+            </div>
+          </OrbitingCircles>
         </div>
 
         {/* Live Stats Ticker Bar with 21st.dev AnimatedNumbers */}

@@ -1,389 +1,128 @@
-# APL Online Auction Website
+# Ashoka Premier League (APL) — Live Digital Cricket Auction Platform
 
-APL means **Ashoka Premier League**.  
-This is a responsive IPL-style cricket auction website with player registration, admin control, captain bidding, live public auction, teams, budgets, and auction reports.
-
----
-
-## Features
-
-- Player registration with photo upload
-- Admin login
-- Captain login
-- Admin dashboard
-- Add teams and captains from admin dashboard
-- Captain password is hashed before saving in Supabase
-- Approve / Reject / Approve & Edit player requests
-- Start / Pause / Resume / End / Reset auction
-- Live auction page for public users
-- Captain live bidding page
-- Realtime auction updates using Supabase Realtime
-- Bid history
-- Sold / Unsold player system
-- Team budget tracking
-- Maximum players per team
-- Auction summary and reports
-- Mobile-friendly dark cricket auction UI
+**Ashoka Premier League (APL)** is an award-winning, responsive digital cricket auction platform inspired by official IPL auctions. It features real-time WebSocket bidding, protected franchise purses, automated squad validation, player registration with gallery photo uploads, captain command desks, admin controls, and interactive 3D visual experiences.
 
 ---
 
-## Tech Stack
+## 🌟 Core Features
 
-- Next.js
-- React
-- TypeScript
-- Tailwind CSS
-- Supabase
-- Supabase Realtime
-- Render deployment
+- **Live Public Auction Arena**: Real-time bid stream, active lot card, team purse indicators, and instant sold/unsold celebrations using Supabase Realtime WebSockets.
+- **Captain Bidding Desk**: Dedicated portal for franchise captains with quick-increment bidding, remaining budget gauges, and target squad wishlists.
+- **Player Registration Draft**: Player sign-up form with gallery photo upload, role selection, batting/bowling style options, and image validation.
+- **Admin Command Center**: Complete control to create franchises/captains, approve registered players, set base prices, and manage auction states (Start, Pause, Resume, End, Reset).
+- **Protected Team Purses**: Automatic validation prevents invalid bids, enforcing max team budget (₹50,000) and squad size limits (4 Players + 1 Captain).
+- **Official Squad Rosters**: Live view of every team's bought players, points spent, remaining budget, and captain details.
+- **Interactive 21st.dev Design System**: Integrated 3D perspective tilt cards, kinetic flip typography, floating glass navigation dock, retro grid line animations, shimmer buttons, shooting meteors, particle sparkles, and shimmer skeleton loaders.
 
 ---
 
-## Required Environment Variables
+## 🛠 Tech Stack
 
-Add these in `.env.local` for local development:
+- **Framework**: Next.js 14 (App Router)
+- **UI Core**: React 18, TypeScript, Tailwind CSS
+- **Interactive 3D & Animations**: `@splinetool/react-spline`, `@splinetool/runtime`, `framer-motion`, `three`
+- **Smooth Scrolling**: `@studio-freight/lenis`
+- **Database & Realtime**: Supabase (PostgreSQL, Supabase Realtime WebSockets, Supabase Storage)
+- **Authentication & Security**: Server-side API authentication with `bcryptjs` password hashing and signed session tokens
+- **Icons**: `lucide-react`
+- **Cloud Hosting**: Render / Vercel
+
+---
+
+## 🎨 21st.dev Interactive Component Suite
+
+The application includes a custom-built 21st.dev & Magic UI interactive component library under `components/ui/`:
+
+| Component | Description |
+| :--- | :--- |
+| **`TiltCard`** | 3D perspective mouse-tilt card with dynamic specular light sheen. |
+| **`FlipWords`** | Kinetic text switcher with vertical slide, motion blur, and spring transitions. |
+| **`AnimatedNumber`** | Scroll-triggered rolling count-up counter for stats and budget displays. |
+| **`FloatingDock`** | Glass action navigation dock with spring-animated icon magnification on mouse hover. |
+| **`RetroGrid`** | 3D perspective animated grid background with horizon light mask. |
+| **`ShimmerButton`** | Glowing gradient shimmer border ring button with tactile click physics. |
+| **`Meteors`** | Shooting meteor particle trails effect for featured cards and hero banners. |
+| **`OrbitingCircles`** | Concentric SVG orbital path animation displaying spinning feature badges. |
+| **`SparklesCore`** | Lightweight canvas particle sparkles background component. |
+| **`AnimatedBeam`** | Traveling pulse connection beam for visual data flow representation. |
+| **`SpotlightCard`** | Mouse-tracking radial spotlight card with dark glassmorphism. |
+| **`Skeleton`** | Animated shimmer skeleton loaders for cards, tables, and avatars. |
+
+---
+
+## 🔑 Required Environment Variables
+
+Create a `.env.local` file for local development:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_URL=https://your-supabase-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-AUTH_SECRET=your_auth_secret
+AUTH_SECRET=your_secret_auth_key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-For Render, add the same variables in:
-
-```text
-Render Dashboard → Your Service → Environment
-```
-
-Important:
-
-```text
-SUPABASE_SERVICE_ROLE_KEY
-```
-
-must be written exactly like this.  
-Do not use a wrong name like `SUPABASI`.
-
-Never expose the service role key on frontend pages.
+> **Note:** For production deployment on Render or Vercel, add the exact same environment variables in your cloud hosting dashboard.
 
 ---
 
-## Local Setup
+## 🚀 Local Setup & Development
 
-Install dependencies:
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/MohammedNoorDehalvi/Namee.git
+   cd Namee
+   ```
 
-```bash
-npm install
-```
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
 
-Run development server:
+3. **Start local development server**:
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-```bash
-npm run dev
-```
+4. **Verify TypeScript type safety**:
+   ```bash
+   npm run typecheck
+   ```
 
-Build project:
-
-```bash
-npm run build
-```
-
-Start production server:
-
-```bash
-npm run start
-```
-
----
-
-## Supabase Setup
-
-Run the main schema first:
-
-```text
-Supabase Dashboard → SQL Editor → New Query
-```
-
-Paste and run:
-
-```text
-supabase/schema.sql
-```
-
-If team/captain saving gives database column or duplicate errors, also run:
-
-```text
-supabase/team_captain_saving_repair.sql
-```
-
-If player registration or auction columns are missing, run the latest schema again.
-
-After running SQL, wait 20–30 seconds and refresh the website.
+5. **Build for production**:
+   ```bash
+   npm run build
+   ```
 
 ---
 
-## Render Deployment
+## 🗄 Database Setup (Supabase)
 
-Recommended Render settings:
-
-```text
-Build Command:
-npm install && npm run build
-
-Start Command:
-npm run start
-```
-
-Add environment variables in Render.
-
-After pushing changes to GitHub:
-
-```text
-Render Dashboard → Manual Deploy → Deploy latest commit
-```
-
-Seeing this in Render logs is normal:
-
-```text
-Local: http://localhost:10000
-```
-
-That localhost is inside Render’s server.  
-Your public website URL will still be:
-
-```text
-https://apl-online-auction.onrender.com
-```
+1. Open your Supabase Project → **SQL Editor**.
+2. Run the master SQL schema script found in [`supabase/schema.sql`](file:///d:/Downloads/Whole%20new%20Web/supabase/schema.sql).
+3. Ensure storage buckets exist for `player-photos` and `team-logos`.
+4. The schema automatically configures Row Level Security (RLS) policies allowing public reads for approved players while protecting captain/admin credentials.
 
 ---
 
-## Admin Flow
+## 🌐 Deployment (Render)
 
-1. Login as admin.
-2. Add teams and captains from admin dashboard.
-3. Captain password is hashed automatically before saving.
-4. Approve registered players.
-5. Set or edit base price if needed.
-6. Start auction only when:
-   - Minimum 4 teams exist
-   - Minimum 4 captains exist
-   - Each team has one captain
-   - Approved players are available
-7. Select first player manually.
-8. After first player, use:
-   - Sold to Current Bidder
-   - Unsold
-   - Next Player Random
+Recommended Render Node Web Service settings:
+
+- **Build Command**: `npm install && npm run build`
+- **Start Command**: `npm run start`
+- **Environment Variables**: Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `AUTH_SECRET`, and `NEXT_PUBLIC_APP_URL`.
 
 ---
 
-## Captain Flow
+## 📄 Documentation Index
 
-If auction is not live:
-
-```text
-Captain login → Captain dashboard
-```
-
-If auction is live:
-
-```text
-Captain login → Live auction bidding page
-```
-
-Captain can only bid if:
-
-- Auction is live
-- A current player is selected
-- Team is not full
-- Team has enough budget
-- Captain is not already highest bidder
-- Player is not sold or unsold
-
-Bid increment:
-
-```text
-Below 1000 → +100
-1000 or above → +1000
-```
-
-Examples:
-
-```text
-100 → 200
-900 → 1000
-1000 → 2000
-5000 → 6000
-```
+- [`PROJECT_STRUCTURE.md`](file:///d:/Downloads/Whole%20new%20Web/PROJECT_STRUCTURE.md): Detailed directory tree and component layout.
+- [`docs/RENDER_DEPLOYMENT.md`](file:///d:/Downloads/Whole%20new%20Web/docs/RENDER_DEPLOYMENT.md): Render cloud deployment instructions.
+- [`docs/SECURITY_NOTES.md`](file:///d:/Downloads/Whole%20new%20Web/docs/SECURITY_NOTES.md): Security architecture & API authentication guidelines.
+- [`docs/SUPABASE_SETUP.md`](file:///d:/Downloads/Whole%20new%20Web/docs/SUPABASE_SETUP.md): Supabase SQL schema & RLS configuration.
 
 ---
 
-## Team Rules
-
-- Captains are not counted as bought players.
-- Each team can buy 4 players by default.
-- Admin can set max players while creating the team.
-- Team budget is tracked live.
-- If a team is full, captain cannot bid anymore.
-- Admin can manually fix teams after auction.
-
----
-
-## Player Registration
-
-Players can register with:
-
-- Player name
-- Phone number
-- Role
-- Batting style
-- Bowling style
-- Gallery photo upload
-
-Photo upload is handled through a server API route.
-
-If registration fails, check:
-
-1. Render environment variables
-2. Supabase schema columns
-3. Supabase storage bucket/policies
-4. `SUPABASE_SERVICE_ROLE_KEY`
-
----
-
-## Testing Demo Auction
-
-You can add demo teams/captains from the admin dashboard.
-
-Example:
-
-```text
-Team Name: Demo 1
-Captain Name: Captain 1
-Password: captain1
-Budget: 50000
-Max Players: 4
-```
-
-Add four teams:
-
-```text
-Demo 1 / Captain 1 / captain1
-Demo 2 / Captain 2 / captain2
-Demo 3 / Captain 3 / captain3
-Demo 4 / Captain 4 / captain4
-```
-
-Then register and approve players.
-
----
-
-## Clean Test Data
-
-To reset test data, use Supabase SQL Editor and clean only:
-
-- players
-- teams
-- captains
-- bids
-- auction events
-- auction action history
-
-Do not delete:
-
-- admin table
-- database schema
-- table columns
-- policies
-- environment variables
-
-Deleting admin rows can break admin login.
-
----
-
-## Common Errors
-
-### Could not find the auction_status column
-
-Run the updated Supabase schema.
-
-```text
-supabase/schema.sql
-```
-
-Then wait 20–30 seconds and refresh.
-
----
-
-### Could not find the max_players column
-
-Run the team/captain repair SQL.
-
-```text
-supabase/team_captain_saving_repair.sql
-```
-
----
-
-### duplicate key value violates unique constraint teams_team_name_key
-
-That team already exists.
-
-Use another team name or clean test teams from Supabase.
-
-The latest saving system should update/link existing records instead of crashing.
-
----
-
-### Registration failed
-
-Check these Render variables:
-
-```text
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
-AUTH_SECRET
-NEXT_PUBLIC_APP_URL
-```
-
-Then redeploy Render.
-
----
-
-## GitHub Push From Termux
-
-If repo folder does not exist:
-
-```bash
-cd ~
-git clone https://github.com/MohammedNoorDehalvi/Namee.git
-cd Namee
-```
-
-After copying updated files:
-
-```bash
-git status
-git add .
-git commit -m "Update APL auction system"
-git push origin main
-```
-
-Then deploy latest commit on Render.
-
----
-
-## Project Status
-
-The project is ready for:
-
-- Player registration
-- Admin team/captain creation
-- Admin player approval
-- Live auction testing
-- Captain bidding
-- Public auction viewing
-- Auction summary and reports
+© Ashoka Premier League (APL). All rights reserved.

@@ -1,29 +1,32 @@
-# Supabase Setup
+# Supabase Database Setup & Configuration Guide
 
-1. Create a new Supabase project.
-2. Go to SQL Editor.
-3. Run `supabase/schema.sql`.
-4. Go to Project Settings → API.
-5. Copy:
-   - Project URL
-   - anon public key
-   - service_role key
-6. Add these to `.env.local` and Render environment variables.
+This guide details setting up the Supabase PostgreSQL database, SQL schema, Row Level Security (RLS) policies, and storage buckets for the Ashoka Premier League auction system.
 
-## Dummy Data
+## Setup Steps
 
-The schema creates:
-- Player: Kabir
-- Captain: Faiz / apl123
-- Admin: admin@apl.com / admin123
+1. **Create Supabase Project**: Create a new project in your Supabase dashboard.
+2. **Execute Master SQL Schema**:
+   - Go to **SQL Editor → New Query**.
+   - Copy and execute the complete script in [`supabase/schema.sql`](file:///d:/Downloads/Whole%20new%20Web/supabase/schema.sql).
+3. **Storage Bucket Setup**:
+   - Create two public storage buckets: `player-photos` and `team-logos`.
+   - Set public read policies for both buckets so avatars and team logos render on the frontend.
+4. **Copy API Credentials**:
+   - Navigate to **Project Settings → API**.
+   - Copy `Project URL`, `anon public key`, and `service_role key`.
+   - Add these credentials to your `.env.local` file and cloud host environment settings.
 
-## RLS Summary
+## Database Tables & RLS Summary
 
-- `players`: public can insert pending players and select approved players.
-- `auction`: public can select.
-- `bids`: public can select.
-- `teams`: public can select.
-- `captains`: no public select policy.
-- `admin`: no public select policy.
+| Table Name | Public Read | Public Insert | Admin / Captain Writes |
+| :--- | :--- | :--- | :--- |
+| `players` | Approved Only | Pending Only | Admin Only |
+| `teams` | Yes | No | Admin Only |
+| `captains` | Restricted (RLS) | No | Admin Only |
+| `bids` | Yes | No | Validated Captain API |
+| `auction` | Yes | No | Admin API |
+| `seasons` | Yes | No | Admin API |
 
-Admin and captain private actions use Next.js API routes with the Supabase service role key.
+## Verifying Realtime WebSockets
+
+Ensure **Realtime** is enabled for the `auction`, `bids`, `players`, and `teams` tables in your Supabase dashboard under **Database → Replication** to allow instant WebSocket updates on live auction displays.

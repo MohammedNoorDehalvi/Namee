@@ -2,14 +2,15 @@
 
 import type { FormEvent, ReactNode } from "react";
 import { useRef, useState } from "react";
-import { ImagePlus, Send, X, CheckCircle2, User, Phone, Shield } from "lucide-react";
-import { motion } from "framer-motion";
+import { ImagePlus, Send, X, CheckCircle2 } from "lucide-react";
 
 import { battingStyles, bowlingStyles, playerRoles } from "@/lib/constants";
 import { normalizePhoneNumber } from "@/lib/auction-utils";
 import { toast } from "@/components/ui/AppToaster";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { BorderBeam } from "@/components/ui/BorderBeam";
+import { Meteors } from "@/components/ui/Meteors";
+import { ShimmerButton } from "@/components/ui/ShimmerButton";
 
 const initialForm = {
   name: "",
@@ -106,11 +107,14 @@ export function PlayerRegistrationForm() {
     <form onSubmit={onSubmit} className="mx-auto max-w-2xl">
       <SpotlightCard
         spotlightColor="rgba(245, 158, 11, 0.18)"
-        className="rounded-[2.5rem] border border-white/15 bg-slate-900/90 p-6 sm:p-10 shadow-2xl backdrop-blur-2xl space-y-6"
+        className="relative overflow-hidden rounded-[2.5rem] border border-white/15 bg-slate-900/90 p-6 sm:p-10 shadow-2xl backdrop-blur-2xl space-y-6"
       >
         <BorderBeam lightColor="#F59E0B" lightWidth={280} duration={8} />
 
-        <div className="flex items-center gap-4 pb-4 border-b border-white/10">
+        {/* 21st.dev Meteors Background */}
+        <Meteors number={12} />
+
+        <div className="flex items-center gap-4 pb-4 border-b border-white/10 relative z-10">
           <div className="rounded-2xl bg-amber-400/20 border border-amber-400/30 p-3.5 text-amber-300 shadow-lg shadow-amber-500/10">
             <ImagePlus className="h-6 w-6" />
           </div>
@@ -128,7 +132,7 @@ export function PlayerRegistrationForm() {
           </div>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2 relative z-10">
           <Field label="Player Name *">
             <input
               className="w-full rounded-2xl bg-white/10 border border-white/15 px-4 py-3.5 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all text-sm font-medium"
@@ -250,16 +254,20 @@ export function PlayerRegistrationForm() {
           </Field>
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full py-4 rounded-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-slate-950 font-extrabold text-base shadow-xl shadow-amber-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          <Send className="h-5 w-5" />
-          <span>{loading ? "Submitting..." : "Submit Player Registration"}</span>
-        </button>
+        {/* 21st.dev ShimmerButton for Submit */}
+        <div className="pt-2 relative z-10">
+          <ShimmerButton
+            type="submit"
+            disabled={loading}
+            shimmerColor="#F59E0B"
+            className="w-full py-4 justify-center"
+          >
+            <Send className="h-5 w-5" />
+            <span>{loading ? "Submitting..." : "Submit Player Registration"}</span>
+          </ShimmerButton>
+        </div>
 
-        <p className="text-center text-xs text-slate-400">
+        <p className="text-center text-xs text-slate-400 relative z-10">
           Base price & approval will be reviewed by admin prior to auction.
         </p>
       </SpotlightCard>

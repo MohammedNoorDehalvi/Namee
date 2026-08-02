@@ -74,8 +74,8 @@ export const GlassEffect: React.FC<GlassEffectProps> = ({
       <div
         className="absolute inset-0 z-20 rounded-[inherit] overflow-hidden pointer-events-none"
         style={{
-          boxShadow:
-            'inset 2px 2px 1px 0 rgba(255, 255, 255, 0.5), inset -1px -1px 1px 1px rgba(255, 255, 255, 0.3)',
+          boxShadow: 'none',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
         }}
       />
 

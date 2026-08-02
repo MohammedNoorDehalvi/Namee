@@ -47,6 +47,7 @@ export const viewport: Viewport = {
 };
 
 import { GlassFilter } from '@/components/ui/liquid-glass';
+import { SmoothScrollProvider } from '@/components/providers/SmoothScrollProvider';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -55,7 +56,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <GlassFilter />
         <SplineIntroOverlay />
         <Navbar />
-        <SeasonPublicGate>{children}</SeasonPublicGate>
+        <SmoothScrollProvider>
+          <SeasonPublicGate>{children}</SeasonPublicGate>
+        </SmoothScrollProvider>
         <Footer />
         <AppToaster />
       </body>

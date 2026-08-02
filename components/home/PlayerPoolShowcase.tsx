@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Sparkles, Trophy, Zap, User } from 'lucide-react';
 import { SpotlightCard } from '@/components/ui/SpotlightCard';
+import { TiltCard } from '@/components/ui/TiltCard';
 
 type Category = 'all' | 'batsman' | 'bowler' | 'allrounder' | 'wicketkeeper';
 
@@ -98,8 +99,8 @@ export function PlayerPoolShowcase() {
         <h2 className="text-3xl md:text-5xl font-extrabold font-display tracking-tight text-white">
           Interactive <span className="text-gradient-gold">Player Pool</span> Showcase
         </h2>
-        <p className="text-slate-400 text-sm md:text-base">
-          Filter through elite registered players entering the upcoming auction pool.
+        <p className="text-slate-300 text-sm md:text-base">
+          Filter through elite registered players entering the upcoming auction pool. Hover to experience 3D tilt effects.
         </p>
 
         {/* Category Toggles */}
@@ -110,23 +111,33 @@ export function PlayerPoolShowcase() {
             { id: 'bowler', label: 'Bowlers' },
             { id: 'allrounder', label: 'All-Rounders' },
             { id: 'wicketkeeper', label: 'Wicketkeepers' },
-          ].map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveTab(cat.id as Category)}
-              className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 ${
-                activeTab === cat.id
-                  ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/20 scale-105'
-                  : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
+          ].map((cat) => {
+            const isActive = activeTab === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setActiveTab(cat.id as Category)}
+                className={`relative px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 ${
+                  isActive
+                    ? 'text-slate-950 shadow-lg shadow-amber-500/30 font-extrabold scale-105'
+                    : 'text-slate-300 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="active-player-tab"
+                    className="absolute inset-0 bg-gradient-to-r from-amber-400 to-amber-500 rounded-full"
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10">{cat.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Grid of Interactive Spotlight Cards */}
+      {/* Grid of Interactive 3D Tilt Cards */}
       <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence>
           {filtered.map((player) => (
@@ -138,36 +149,38 @@ export function PlayerPoolShowcase() {
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ duration: 0.3 }}
             >
-              <SpotlightCard className="h-full flex flex-col justify-between space-y-4 border-white/10 bg-slate-900/90 hover:border-amber-500/40">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold uppercase tracking-wider">
-                      {player.roleLabel}
-                    </span>
-                    <span className="text-xs font-extrabold text-cyan-400 font-display flex items-center gap-1">
-                      <Zap className="w-3 h-3" /> {player.rating} Rating
-                    </span>
+              <TiltCard tiltMaxAngle={12} glareOpacity={0.12}>
+                <SpotlightCard className="h-full flex flex-col justify-between space-y-4 border-white/15 bg-slate-900/90 hover:border-amber-500/40 p-6 rounded-3xl">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-extrabold uppercase tracking-wider">
+                        {player.roleLabel}
+                      </span>
+                      <span className="text-xs font-extrabold text-cyan-400 font-display flex items-center gap-1">
+                        <Zap className="w-3.5 h-3.5" /> {player.rating} Rating
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3.5 pt-1">
+                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500/20 to-cyan-500/20 border border-white/15 flex items-center justify-center text-amber-400">
+                        <User className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-white font-display">{player.name}</h3>
+                        <p className="text-xs text-slate-300">Base Price: <span className="text-amber-300 font-bold">{player.basePrice}</span></p>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center text-amber-400">
-                      <User className="w-5 h-5" />
-                    </div>
+                  <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-white/10 flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-bold text-white font-display">{player.name}</h3>
-                      <p className="text-xs text-slate-400">Base Price: <span className="text-white font-semibold">{player.basePrice}</span></p>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">{player.statLabel}</span>
+                      <span className="text-base font-extrabold text-white font-display">{player.stat}</span>
                     </div>
+                    <Sparkles className="w-4 h-4 text-amber-400 opacity-70" />
                   </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">{player.statLabel}</span>
-                    <span className="text-base font-extrabold text-white font-display">{player.stat}</span>
-                  </div>
-                  <Sparkles className="w-4 h-4 text-amber-400 opacity-60" />
-                </div>
-              </SpotlightCard>
+                </SpotlightCard>
+              </TiltCard>
             </motion.div>
           ))}
         </AnimatePresence>

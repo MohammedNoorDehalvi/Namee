@@ -6,6 +6,9 @@ import { Footer } from '@/components/layout/Footer';
 import { AppToaster } from '@/components/ui/AppToaster';
 import { SeasonPublicGate } from '@/components/season/SeasonPublicGate';
 import { SplineIntroOverlay } from '@/components/ui/SplineIntroOverlay';
+import { FloatingDock } from '@/components/ui/FloatingDock';
+import { GlassFilter } from '@/components/ui/liquid-glass';
+import { SmoothScrollProvider } from '@/components/providers/SmoothScrollProvider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -46,9 +49,6 @@ export const viewport: Viewport = {
   themeColor: '#030712',
 };
 
-import { GlassFilter } from '@/components/ui/liquid-glass';
-import { SmoothScrollProvider } from '@/components/providers/SmoothScrollProvider';
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable} ${playfair.variable}`}>
@@ -60,6 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SeasonPublicGate>{children}</SeasonPublicGate>
         </SmoothScrollProvider>
         <Footer />
+        <FloatingDock />
         <AppToaster />
       </body>
     </html>

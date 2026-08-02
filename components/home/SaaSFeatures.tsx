@@ -33,14 +33,14 @@ export function SaaSFeatures() {
         <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900 border border-white/10 text-amber-400 text-xs font-semibold uppercase tracking-wider">
             <Cpu className="w-3.5 h-3.5 text-amber-400" />
-            <span>ENTERPRISE-GRADE INFRASTRUCTURE</span>
+            <span>REAL-TIME AUCTION PLATFORM</span>
           </div>
           <h2 className="text-3xl md:text-5xl font-extrabold font-display tracking-tight text-white">
             Built for High-Stakes <br />
             <span className="text-gradient-gold">Championship Auctions</span>
           </h2>
           <p className="text-slate-300 text-base md:text-lg">
-            Everything you need to organize, run, and broadcast professional sports league auctions with total security, zero lag, and instant validation.
+            Everything you need to organize, run, and broadcast cricket league auctions with total security and instant purse validation.
           </p>
         </div>
 
@@ -62,7 +62,7 @@ export function SaaSFeatures() {
                   </div>
                   <h3 className="text-2xl font-bold text-white font-display">Real-Time Bidding Engine</h3>
                   <p className="text-slate-300 text-sm leading-relaxed max-w-xl">
-                    Powered by high-throughput WebSockets. Every counter-bid updates instantly across all captains, administrators, and spectator displays without page refreshes.
+                    Powered by WebSocket broadcasts. Every counter-bid updates instantly across all captains, administrators, and spectator displays.
                   </p>
                 </div>
 
@@ -80,8 +80,8 @@ export function SaaSFeatures() {
                       <span className="text-[11px] text-slate-400 font-medium">Max Purse</span>
                     </div>
                     <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-                      <span className="block text-xl font-extrabold text-cyan-400 font-display">&lt; 10ms</span>
-                      <span className="text-[11px] text-slate-400 font-medium">Sync Latency</span>
+                      <span className="block text-xl font-extrabold text-cyan-400 font-display">Real-Time</span>
+                      <span className="text-[11px] text-slate-400 font-medium">WebSocket Sync</span>
                     </div>
                     <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
                       <span className="block text-xl font-extrabold text-amber-400 font-display">4 + 1</span>

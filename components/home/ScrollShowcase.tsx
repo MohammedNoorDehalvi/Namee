@@ -45,18 +45,16 @@ const MARQUEE_ITEMS_1 = [
   'Ashoka Premier League Season 8',
   'Live Bidding Arena',
   'Real-Time WebSocket Engine',
-  'Sub-10ms Sync Latency',
+  'Real-Time Bid Synchronization',
   'Protected Franchise Purses',
 ];
 
 const MARQUEE_ITEMS_2 = [
-  'Man Of The Match Awards',
+  'Official Team Squads',
   'Grand Championship Auction',
-  'Tehmeed',
-  'Naved',
-  'Anas',
-  'Zaid',
-  'Hamza',
+  'Player Registration Pool',
+  'Captain Bidding Portal',
+  'Verified Player Draft',
 ];
 
 export function ScrollShowcase() {
@@ -168,4 +166,3 @@ export function ScrollShowcase() {
     </main>
   );
 }
-

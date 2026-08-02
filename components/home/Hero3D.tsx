@@ -181,9 +181,9 @@ export function Hero3D() {
                 </div>
                 <div>
                   <span className="block text-xl font-extrabold text-emerald-400 font-display leading-none">
-                    Sub-10ms
+                    Live Sync
                   </span>
-                  <span className="text-xs text-slate-300 font-medium">WebSocket Sync</span>
+                  <span className="text-xs text-slate-300 font-medium">WebSocket Engine</span>
                 </div>
               </div>
             </div>

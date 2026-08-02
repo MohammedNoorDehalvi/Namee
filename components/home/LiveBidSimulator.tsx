@@ -210,14 +210,14 @@ export function LiveBidSimulator() {
             <span className="text-gradient-cyan">Real-Time Bidding</span>
           </h2>
           <p className="text-slate-400 text-base md:text-lg">
-            Choose your franchise below and place live bids in our zero-latency auction simulator. Watch rival team captains respond in real time.
+            Choose your franchise below and place live bids in our auction simulator. Watch rival team captains respond in real time.
           </p>
 
           {/* Real-time Connection Pulse Beam */}
           <div className="max-w-md mx-auto pt-2">
             <div className="flex justify-between text-[11px] text-slate-400 font-semibold mb-1">
               <span>Captain Portal</span>
-              <span className="text-cyan-400 font-bold">Sub-10ms WebSocket Stream</span>
+              <span className="text-cyan-400 font-bold">Real-Time WebSocket Stream</span>
               <span>Live Arena</span>
             </div>
             <AnimatedBeam duration={2.5} gradientStartColor="#06B6D4" gradientStopColor="#F59E0B" />
@@ -423,7 +423,7 @@ export function LiveBidSimulator() {
                 <div className="flex items-center gap-3">
                   <Sparkles className="w-5 h-5 text-cyan-400" />
                   <p className="text-xs text-slate-300">
-                    Sub-10ms WebSocket latency ensures instant bid synchronization for all franchise captains.
+                    Real-time WebSocket synchronization ensures instant bid updates for all franchise captains.
                   </p>
                 </div>
               </div>
@@ -434,4 +434,3 @@ export function LiveBidSimulator() {
     </section>
   );
 }
-

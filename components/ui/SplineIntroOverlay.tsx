@@ -1,16 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, X } from 'lucide-react';
+import { Sparkles, X, Loader2 } from 'lucide-react';
 import { GlassEffect, GlassCard } from '@/components/ui/liquid-glass';
 
+// Lazy load Spline component as recommended in the Spline 3D skill
+const Spline = lazy(() => import('@splinetool/react-spline'));
+
+const SPLINE_SCENE_URL = 'https://prod.spline.design/ngx17wSPDASGlRWo/scene.splinecode';
 const DISPLAY_DURATION_MS = 5000;
 
 export function SplineIntroOverlay() {
   const [mounted, setMounted] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [progress, setProgress] = useState(0);
+  const [splineLoaded, setSplineLoaded] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -66,25 +71,38 @@ export function SplineIntroOverlay() {
           {/* Liquid Glass Backdrop Blur */}
           <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-2xl pointer-events-none" />
 
-          {/* User's Exact Animated Letter Loader Component */}
-          <div className="relative z-10 flex flex-col items-center justify-center p-6 text-center space-y-6">
-            <GlassCard className="p-10 md:p-14 rounded-3xl flex flex-col items-center justify-center space-y-8 max-w-lg shadow-2xl">
-              <div className="loader-wrapper">
-                <span className="loader-letter">G</span>
-                <span className="loader-letter">e</span>
-                <span className="loader-letter">n</span>
-                <span className="loader-letter">e</span>
-                <span className="loader-letter">r</span>
-                <span className="loader-letter">a</span>
-                <span className="loader-letter">t</span>
-                <span className="loader-letter">i</span>
-                <span className="loader-letter">n</span>
-                <span className="loader-letter">g</span>
-                <div className="loader"></div>
+          {/* 3D Spline Interactive Element */}
+          <div className="relative z-10 flex flex-col items-center justify-center p-4 md:p-6 text-center space-y-6 w-full max-w-4xl">
+            <GlassCard className="w-full p-4 sm:p-6 md:p-8 rounded-4xl flex flex-col items-center justify-center space-y-6 shadow-2xl border border-white/20">
+              {/* Spline Container */}
+              <div className="relative w-full h-[320px] sm:h-[400px] md:h-[480px] rounded-3xl overflow-hidden flex items-center justify-center">
+                {!splineLoaded && (
+                  <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/60 backdrop-blur-md rounded-3xl space-y-3">
+                    <Loader2 className="w-10 h-10 text-amber-400 animate-spin" />
+                    <span className="text-xs font-mono font-bold tracking-widest text-amber-300 uppercase">
+                      LOADING 3D SPLINE SCENE...
+                    </span>
+                  </div>
+                )}
+
+                <Suspense
+                  fallback={
+                    <div className="flex flex-col items-center justify-center space-y-3 text-amber-400">
+                      <Loader2 className="w-10 h-10 animate-spin" />
+                    </div>
+                  }
+                >
+                  <Spline
+                    scene={SPLINE_SCENE_URL}
+                    onLoad={() => setSplineLoaded(true)}
+                    className="w-full h-full rounded-3xl border-0"
+                  />
+                </Suspense>
               </div>
 
+              {/* Branding Text */}
               <div className="space-y-2 border-t border-white/10 pt-4 w-full">
-                <span className="block text-sm font-extrabold text-white uppercase tracking-widest font-display">
+                <span className="block text-sm sm:text-base font-extrabold text-white uppercase tracking-widest font-display">
                   ASHOKA PREMIER LEAGUE
                 </span>
                 <span className="block text-xs text-amber-300 font-medium font-mono tracking-wider uppercase">

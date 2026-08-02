@@ -38,14 +38,16 @@ export const GlassEffect: React.FC<GlassEffectProps> = ({
   const getVariantBg = () => {
     switch (variant) {
       case 'amber':
-        return 'rgba(245, 158, 11, 0.16)';
+        return 'rgba(245, 158, 11, 0.22)';
       case 'emerald':
-        return 'rgba(16, 185, 129, 0.16)';
+        return 'rgba(16, 185, 129, 0.22)';
+      case 'gold':
+        return 'rgba(251, 191, 36, 0.25)';
       case 'light':
-        return 'rgba(255, 255, 255, 0.25)';
+        return 'rgba(255, 255, 255, 0.28)';
       case 'dark':
       default:
-        return 'rgba(255, 255, 255, 0.12)';
+        return 'rgba(255, 255, 255, 0.18)';
     }
   };
 
@@ -55,12 +57,12 @@ export const GlassEffect: React.FC<GlassEffectProps> = ({
       className={`relative flex font-semibold overflow-hidden text-white cursor-pointer transition-all duration-700 ${className}`}
       style={glassStyle}
     >
-      {/* Liquid Glass Layers */}
+      {/* Liquid Glass Distortion & Blur Layer */}
       <div
         className="absolute inset-0 z-0 overflow-hidden rounded-[inherit]"
         style={{
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
           filter: 'url(#glass-distortion)',
           isolation: 'isolate',
         }}
@@ -72,7 +74,8 @@ export const GlassEffect: React.FC<GlassEffectProps> = ({
       <div
         className="absolute inset-0 z-20 rounded-[inherit] overflow-hidden pointer-events-none"
         style={{
-          boxShadow: 'inset 0 0 1px 1px rgba(255, 255, 255, 0.12)',
+          boxShadow:
+            'inset 2px 2px 1px 0 rgba(255, 255, 255, 0.5), inset -1px -1px 1px 1px rgba(255, 255, 255, 0.3)',
         }}
       />
 

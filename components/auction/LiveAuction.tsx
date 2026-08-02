@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Radio, Trophy, Users, WalletCards } from 'lucide-react';
+import { Radio, Trophy, Users, WalletCards, Zap } from 'lucide-react';
 import { useAuctionRealtime } from '@/hooks/useAuctionRealtime';
 import { usePlayerSoldCelebration } from '@/hooks/usePlayerSoldCelebration';
 import { PlayerSoldCelebrationOverlay } from '@/components/auction/PlayerSoldCelebrationOverlay';
@@ -12,6 +12,8 @@ import type { Player, Team } from '@/lib/types';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { GlassCard, GlassButton } from '@/components/ui/liquid-glass';
+import { TiltCard } from '@/components/ui/TiltCard';
+import { SpotlightCard } from '@/components/ui/SpotlightCard';
 
 type SaleCelebration = {
   id: string;
@@ -19,7 +21,6 @@ type SaleCelebration = {
   teamName: string;
   teamLogo?: string | null;
 };
-
 
 type CelebrationParticle = {
   id: string;
@@ -179,29 +180,29 @@ export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }
     <div className="relative space-y-8">
       <PlayerSoldCelebrationOverlay celebration={soldCelebration} />
 
-      <GlassCard className="p-6 md:p-8 rounded-3xl">
+      <GlassCard className="p-6 md:p-8 rounded-3xl border-white/15">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="inline-flex items-center gap-2 rounded-full bg-amber-400/20 px-4 py-2 text-xs font-black uppercase tracking-wider text-amber-300">
-              <Radio size={15} /> {auction?.auction_status || 'NOT_STARTED'} Auction
+            <p className="inline-flex items-center gap-2 rounded-full bg-emerald-400/20 border border-emerald-400/30 px-4 py-2 text-xs font-black uppercase tracking-wider text-emerald-300">
+              <Radio size={15} className="animate-pulse text-emerald-400" /> {auction?.auction_status || 'NOT_STARTED'} AUCTION ARENA
             </p>
-            <h1 className="mt-4 text-4xl font-black text-white md:text-6xl font-display">APL Live Auction</h1>
-            <p className="mt-3 max-w-2xl text-slate-200">
-              Realtime current player, bids, teams, budgets, events and final squads.
+            <h1 className="mt-4 text-4xl font-extrabold text-white md:text-6xl font-display tracking-tight">APL Live Auction</h1>
+            <p className="mt-3 max-w-2xl text-slate-200 text-sm md:text-base leading-relaxed">
+              Real-time player lot stream, franchise bidding history, purse analytics, and live team squad rosters.
             </p>
           </div>
 
-          <div className="rounded-3xl bg-white/10 p-4 border border-white/10">
-            <p className="text-sm text-slate-300">Highest Bidder</p>
-            <div className="mt-2 flex items-center gap-3">
+          <div className="rounded-3xl bg-slate-900/90 p-5 border border-white/15 shadow-xl">
+            <p className="text-xs uppercase font-extrabold tracking-wider text-amber-400">Current Leading Franchise</p>
+            <div className="mt-2.5 flex items-center gap-3.5">
               <LogoAvatar src={highestTeam?.logo_url} label={highestTeam?.team_name || 'No bids'} size="md" />
               <div>
-                <p className="font-black text-white">
+                <p className="font-extrabold text-white text-base font-display">
                   {auction?.highest_team_name
-                    ? `${auction.highest_team_name} / ${auction.highest_bidder_captain_name || 'Captain'}`
-                    : 'No bids yet'}
+                    ? `${auction.highest_team_name}`
+                    : 'No bids placed yet'}
                 </p>
-                <p className="text-sm text-slate-300">Current bid: {formatMoney(currentBid)}</p>
+                <p className="text-xs text-amber-300 font-bold mt-0.5">Highest Bid: {formatMoney(currentBid)}</p>
               </div>
             </div>
           </div>
@@ -222,9 +223,9 @@ export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }
               <GlassButton
                 href="/captain-login"
                 variant="emerald"
-                className="w-full py-4 text-center font-black text-slate-950 rounded-full"
+                className="w-full py-4 text-center font-extrabold text-slate-950 rounded-full"
               >
-                <span>Captain Login to Bid</span>
+                <span>Captain Login to Place Bids</span>
               </GlassButton>
             )}
           </div>
@@ -245,67 +246,88 @@ function CurrentPlayerCard({
 }) {
   if (!player) {
     return (
-      <GlassCard className="flex min-h-[420px] items-center justify-center p-6 text-center">
-        <EmptyState title="No current player" description="Waiting for admin to select the next player." />
+      <GlassCard className="flex min-h-[420px] items-center justify-center p-6 text-center border-white/15">
+        <EmptyState title="No active player on lot" description="Waiting for administrator to initiate the next player lot." />
       </GlassCard>
     );
   }
 
   return (
-    <GlassCard className="overflow-hidden p-6 md:p-8">
-      <div className="p-6 md:p-8">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-          <LogoAvatar src={player.photo_url} label={player.name} size="xl" />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-black uppercase tracking-wider text-green-300">Current Player</p>
-            <h2 className="mt-2 break-words text-4xl font-black text-white md:text-6xl">{player.name}</h2>
-            <p className="mt-3 text-white/60">
-              {player.role} • Batting: {player.batting_style} • Bowling: {player.bowling_style}
-            </p>
+    <TiltCard tiltMaxAngle={8}>
+      <SpotlightCard spotlightColor="rgba(245, 158, 11, 0.2)" className="overflow-hidden p-6 md:p-8 rounded-[2.5rem] border border-white/15 bg-slate-900/90 shadow-2xl">
+        <div className="space-y-6">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+            <LogoAvatar src={player.photo_url} label={player.name} size="xl" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 rounded-full bg-emerald-400/20 border border-emerald-400/30 text-emerald-300 text-xs font-extrabold uppercase tracking-wider">
+                  ACTIVE AUCTION LOT
+                </span>
+              </div>
+              <h2 className="break-words text-4xl font-extrabold text-white md:text-6xl font-display">{player.name}</h2>
+              <p className="text-sm font-semibold text-amber-300 uppercase tracking-wider">
+                {player.role} • Batting: {player.batting_style || 'N/A'} • Bowling: {player.bowling_style || 'N/A'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 pt-2">
+            <BigStat label="Base Price" value={formatMoney(player.base_price)} />
+            <BigStat label="Current Bid" value={formatMoney(currentBid)} highlighted />
+            <BigStat label="Highest Bidder" value={highestTeam || 'No bids yet'} />
+            <BigStat label="Lot Status" value={player.auction_status || player.status} />
           </div>
         </div>
-
-        <div className="mt-8 grid grid-cols-2 gap-4">
-          <BigStat label="Base Price" value={formatMoney(player.base_price)} />
-          <BigStat label="Current Bid" value={formatMoney(currentBid)} highlighted />
-          <BigStat label="Highest Bidder" value={highestTeam || 'No bids'} />
-          <BigStat label="Status" value={player.auction_status || player.status} />
-        </div>
-      </div>
-    </GlassCard>
+      </SpotlightCard>
+    </TiltCard>
   );
 }
 
 function BudgetPanel({ teams, players }: { teams: Team[]; players: Player[] }) {
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur">
-      <h3 className="flex items-center gap-2 font-black text-white">
-        <WalletCards size={18} className="text-yellow-300" /> Teams & Points
+    <section className="rounded-[2rem] border border-white/15 bg-slate-900/80 p-6 backdrop-blur-xl space-y-4 shadow-xl">
+      <h3 className="flex items-center gap-2 font-extrabold text-white font-display text-lg">
+        <WalletCards size={20} className="text-amber-400" /> Franchise Purses & Squads
       </h3>
-      <div className="mt-4 grid gap-3">
-        {teams.length === 0 && <p className="text-sm text-white/50">No teams created yet.</p>}
+      <div className="grid gap-3">
+        {teams.length === 0 && <p className="text-sm text-slate-400">No teams created yet.</p>}
         {teams.map((team) => {
           const bought = boughtPlayersForTeam(players, team);
-          const full = bought.length >= (team.max_players || 4);
+          const maxP = team.max_players || 4;
+          const full = bought.length >= maxP;
+          const remainingPct = Math.min(100, Math.max(0, (Number(team.remaining_budget || 0) / Number(team.budget || 50000)) * 100));
 
           return (
-            <div key={team.id} className="rounded-2xl border border-white/10 bg-black/15 p-3">
+            <div key={team.id} className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 space-y-2.5">
               <div className="flex items-center gap-3">
                 <LogoAvatar src={team.logo_url} label={team.team_name} size="sm" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-black text-white">{team.team_name}</p>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-white/50">
+                  <p className="truncate font-extrabold text-white text-sm">{team.team_name}</p>
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-300">
                     <LogoAvatar src={team.captain_photo_url} label={team.captain_name} size="xs" />
                     <span className="truncate">Captain: {team.captain_name}</span>
                   </div>
                 </div>
                 {full && (
-                  <span className="rounded-full bg-green-300 px-2 py-1 text-[10px] font-black text-black">Team Full</span>
+                  <span className="rounded-full bg-emerald-400/20 border border-emerald-400/30 px-2.5 py-1 text-[10px] font-extrabold text-emerald-300 uppercase">
+                    Squad Full
+                  </span>
                 )}
               </div>
-              <p className="mt-2 text-xs text-white/55">
-                Remaining {formatMoney(team.remaining_budget)} • {bought.length}/{team.max_players || 4} players
-              </p>
+
+              {/* Purse meter bar */}
+              <div className="space-y-1 pt-1">
+                <div className="flex justify-between text-[11px] font-semibold text-slate-300">
+                  <span>Purse: {formatMoney(team.remaining_budget)}</span>
+                  <span>{bought.length}/{maxP} Squad</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-500"
+                    style={{ width: `${remainingPct}%` }}
+                  />
+                </div>
+              </div>
             </div>
           );
         })}
@@ -322,28 +344,35 @@ function BidHistory({
   teams: Team[];
 }) {
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur">
-      <h3 className="flex items-center gap-2 font-black text-white">
-        <Trophy size={18} className="text-yellow-300" /> Last 10 Bids
+    <section className="rounded-[2rem] border border-white/15 bg-slate-900/80 p-6 backdrop-blur-xl space-y-4 shadow-xl">
+      <h3 className="flex items-center gap-2 font-extrabold text-white font-display text-lg">
+        <Trophy size={20} className="text-amber-400" /> Recent Bids
       </h3>
-      <div className="mt-4 grid gap-3">
-        {bids.length === 0 && <p className="text-sm text-white/50">No bids yet.</p>}
-        {bids.map((bid) => {
+      <div className="grid gap-3">
+        {bids.length === 0 && <p className="text-sm text-slate-400">No bids placed in this lot yet.</p>}
+        {bids.map((bid, index) => {
           const bidTeam = teams.find((team) => team.id === bid.team_id) || teams.find((team) => team.team_name === bid.team_name);
 
           return (
-            <div key={bid.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/15 p-3">
+            <div
+              key={bid.id}
+              className={`flex items-center justify-between gap-3 rounded-2xl border p-3.5 transition-all ${
+                index === 0
+                  ? 'border-amber-400/40 bg-amber-500/10 shadow-lg shadow-amber-500/10'
+                  : 'border-white/10 bg-slate-950/60 opacity-85'
+              }`}
+            >
               <div className="flex min-w-0 items-center gap-3">
                 <LogoAvatar src={bidTeam?.logo_url} label={bid.team_name} size="sm" />
                 <div className="min-w-0">
-                  <p className="truncate font-bold text-white">{bid.team_name}</p>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-white/50">
+                  <p className="truncate font-extrabold text-white text-sm">{bid.team_name}</p>
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-300">
                     <LogoAvatar src={bidTeam?.captain_photo_url} label={bid.captain_name || bidTeam?.captain_name || 'Captain'} size="xs" />
                     <span className="truncate">{bid.captain_name || bidTeam?.captain_name || 'Captain'}</span>
                   </div>
                 </div>
               </div>
-              <p className="shrink-0 font-black text-green-300">{formatMoney(bid.bid_amount)}</p>
+              <p className="shrink-0 font-extrabold text-emerald-400 text-base font-display">{formatMoney(bid.bid_amount)}</p>
             </div>
           );
         })}
@@ -354,14 +383,14 @@ function BidHistory({
 
 function EventPanel({ events }: { events: { id: string; message: string; created_at: string }[] }) {
   return (
-    <GlassCard className="p-5 rounded-3xl">
-      <h3 className="flex items-center gap-2 font-black text-white font-display">
-        <Users size={18} className="text-emerald-300" /> Live Messages
+    <GlassCard className="p-6 rounded-3xl space-y-4 border-white/15">
+      <h3 className="flex items-center gap-2 font-extrabold text-white font-display text-lg">
+        <Zap size={20} className="text-cyan-400" /> Auction Event Log
       </h3>
-      <div className="mt-4 grid gap-2">
-        {events.length === 0 && <p className="text-sm text-slate-300">No auction messages yet.</p>}
+      <div className="grid gap-2.5">
+        {events.length === 0 && <p className="text-sm text-slate-400">No auction event logs yet.</p>}
         {events.map((event) => (
-          <p key={event.id} className="rounded-2xl bg-white/10 p-3 text-sm text-slate-200">
+          <p key={event.id} className="rounded-2xl bg-white/5 border border-white/10 p-3 text-xs text-slate-200 leading-relaxed font-medium">
             {event.message}
           </p>
         ))}
@@ -372,14 +401,15 @@ function EventPanel({ events }: { events: { id: string; message: string; created
 
 function UnsoldPanel({ players }: { players: Player[] }) {
   return (
-    <GlassCard className="p-5 rounded-3xl">
-      <h3 className="font-black text-white font-display">Unsold Players</h3>
-      <div className="mt-4 grid gap-2">
-        {players.length === 0 && <p className="text-sm text-slate-300">No unsold players yet.</p>}
+    <GlassCard className="p-6 rounded-3xl space-y-4 border-white/15">
+      <h3 className="font-extrabold text-white font-display text-lg">Unsold Players</h3>
+      <div className="grid gap-2">
+        {players.length === 0 && <p className="text-sm text-slate-400">No unsold players in this session.</p>}
         {players.slice(0, 8).map((player) => (
-          <p key={player.id} className="rounded-2xl bg-white/10 p-3 text-sm text-slate-200">
-            {player.name}
-          </p>
+          <div key={player.id} className="rounded-2xl bg-white/5 border border-white/10 p-3 text-xs text-slate-300 font-semibold flex items-center justify-between">
+            <span>{player.name} ({player.role})</span>
+            <span className="text-slate-400 font-medium">{formatMoney(player.base_price)}</span>
+          </div>
         ))}
       </div>
     </GlassCard>
@@ -404,25 +434,25 @@ function FinalReport({
           const bought = boughtPlayersForTeam(players, team);
 
           return (
-            <div key={team.id} className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur">
-              <div className="flex items-center gap-3">
+            <div key={team.id} className="rounded-[2.5rem] border border-white/15 bg-slate-900/90 p-6 backdrop-blur-2xl space-y-4 shadow-xl">
+              <div className="flex items-center gap-4">
                 <LogoAvatar src={team.logo_url} label={team.team_name} size="md" />
                 <div>
-                  <h2 className="text-2xl font-black text-white">
+                  <h2 className="text-2xl font-extrabold text-white font-display">
                     #{index + 1} {team.team_name}
                   </h2>
-                  <p className="text-white/55">
+                  <p className="text-xs text-slate-300 font-medium">
                     Captain: {team.captain_name} • Remaining: {formatMoney(team.remaining_budget)}
                   </p>
                 </div>
               </div>
-              <p className="mt-3 text-sm font-bold text-green-300">Spent {formatMoney(computeTeamSpent(players, team))}</p>
-              <div className="mt-3 grid gap-2">
-                {bought.length === 0 && <p className="text-sm text-white/50">No players bought.</p>}
+              <p className="text-sm font-extrabold text-emerald-400">Spent Total: {formatMoney(computeTeamSpent(players, team))}</p>
+              <div className="grid gap-2">
+                {bought.length === 0 && <p className="text-sm text-slate-400 italic">No players bought.</p>}
                 {bought.map((player) => (
-                  <div key={player.id} className="flex items-center justify-between rounded-2xl bg-black/15 p-3">
-                    <span className="text-white">{player.name}</span>
-                    <span className="text-white/55">
+                  <div key={player.id} className="flex items-center justify-between rounded-2xl bg-slate-950/70 border border-white/10 p-3 text-xs">
+                    <span className="font-bold text-white">{player.name}</span>
+                    <span className="text-amber-300 font-semibold">
                       {player.role} • {formatMoney(player.sold_price)}
                     </span>
                   </div>
@@ -433,18 +463,18 @@ function FinalReport({
         })}
       </section>
 
-      <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur">
-        <h3 className="text-2xl font-black text-white">Auction Summary</h3>
-        <div className="mt-5 grid gap-3">
+      <section className="rounded-[2.5rem] border border-white/15 bg-slate-900/90 p-6 backdrop-blur-2xl space-y-6 shadow-xl">
+        <h3 className="text-2xl font-extrabold text-white font-display">Auction Final Summary</h3>
+        <div className="grid gap-3">
           <BigStat label="Most Expensive Player" value={mostExpensive ? mostExpensive.name : 'None'} />
-          <BigStat label="Price" value={formatMoney(mostExpensive?.sold_price)} highlighted />
+          <BigStat label="Final Price" value={formatMoney(mostExpensive?.sold_price)} highlighted />
         </div>
-        <h4 className="mt-6 font-black text-white">Unsold Players</h4>
-        <div className="mt-3 grid gap-2">
-          {unsoldPlayers.length === 0 && <p className="text-sm text-white/50">No unsold players.</p>}
+        <h4 className="font-extrabold text-white font-display text-lg pt-2">Unsold Roster</h4>
+        <div className="grid gap-2">
+          {unsoldPlayers.length === 0 && <p className="text-sm text-slate-400 italic">No unsold players.</p>}
           {unsoldPlayers.map((player) => (
-            <p key={player.id} className="rounded-2xl bg-black/15 p-3 text-sm text-white/65">
-              {player.name}
+            <p key={player.id} className="rounded-2xl bg-slate-950/70 border border-white/10 p-3 text-xs text-slate-300 font-medium">
+              {player.name} ({player.role})
             </p>
           ))}
         </div>
@@ -475,14 +505,14 @@ function LogoAvatar({
         src={src}
         alt={label}
         loading="lazy"
-        className={`${sizes[size]} shrink-0 border border-white/10 object-cover shadow-lg shadow-black/30`}
+        className={`${sizes[size]} shrink-0 border border-white/15 object-cover shadow-lg shadow-black/30`}
       />
     );
   }
 
   return (
     <div
-      className={`${sizes[size]} flex shrink-0 items-center justify-center border border-yellow-300/20 bg-yellow-300/15 font-black text-yellow-300`}
+      className={`${sizes[size]} flex shrink-0 items-center justify-center border border-amber-400/30 bg-amber-400/15 font-extrabold text-amber-300 shadow-md`}
     >
       {initials(label)}
     </div>
@@ -491,9 +521,9 @@ function LogoAvatar({
 
 function BigStat({ label, value, highlighted }: { label: string; value: React.ReactNode; highlighted?: boolean }) {
   return (
-    <div className={`rounded-2xl border p-4 ${highlighted ? 'border-green-300/30 bg-green-300/10' : 'border-white/10 bg-black/15'}`}>
-      <p className="text-sm text-white/45">{label}</p>
-      <p className={`mt-1 text-2xl font-black ${highlighted ? 'text-green-300' : 'text-white'}`}>{value}</p>
+    <div className={`rounded-2xl border p-4 ${highlighted ? 'border-amber-400/30 bg-amber-500/10' : 'border-white/10 bg-slate-950/60'}`}>
+      <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">{label}</p>
+      <p className={`text-2xl font-extrabold font-display ${highlighted ? 'text-amber-300' : 'text-white'}`}>{value}</p>
     </div>
   );
 }

@@ -2,65 +2,84 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const TOTAL_FRAMES = 60;
+const TOTAL_FRAMES = 240;
 
 const getFramePath = (index: number) => {
-  const paddedNum = String(index + 1).padStart(3, '0');
-  return `/frames/frame_${paddedNum}.webp`;
+  const paddedNum = String(index + 1).padStart(5, '0');
+  return `/frames/frame_${paddedNum}.jpg`;
 };
 
 export function HomepageScrollBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const imagesRef = useRef<(HTMLImageElement | null)[]>(new Array(TOTAL_FRAMES).fill(null));
   const targetFrameRef = useRef<number>(0);
   const currentFrameRef = useRef<number>(0);
-  const lastDrawnFrameRef = useRef<number>(-1);
+  const lastDrawnFloatFrameRef = useRef<number>(-1);
   const animFrameIdRef = useRef<number | null>(null);
+  const isMountedRef = useRef<boolean>(true);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Helper to draw a given frame index onto canvas with cover object-fit
-  const drawFrame = (frameIndex: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Find requested frame or fallback to nearest loaded frame
-    let imgToDraw = imagesRef.current[frameIndex];
-    if (!imgToDraw || !imgToDraw.complete) {
-      // Search closest available loaded image
-      for (let offset = 1; offset < TOTAL_FRAMES; offset++) {
-        const prev = frameIndex - offset;
-        const next = frameIndex + offset;
-        if (prev >= 0 && imagesRef.current[prev]?.complete) {
-          imgToDraw = imagesRef.current[prev];
-          break;
-        }
-        if (next < TOTAL_FRAMES && imagesRef.current[next]?.complete) {
-          imgToDraw = imagesRef.current[next];
-          break;
-        }
-      }
+  // Helper to get loaded image or nearest available loaded frame
+  const getLoadedImage = (frameIndex: number): HTMLImageElement | null => {
+    const idx = Math.max(0, Math.min(TOTAL_FRAMES - 1, frameIndex));
+    const img = imagesRef.current[idx];
+    if (img && img.complete && img.naturalWidth > 0) {
+      return img;
     }
 
-    if (!imgToDraw || !imgToDraw.naturalWidth) return;
+    // Fallback to nearest loaded frame
+    for (let offset = 1; offset < TOTAL_FRAMES; offset++) {
+      const prev = idx - offset;
+      const next = idx + offset;
+      if (prev >= 0) {
+        const prevImg = imagesRef.current[prev];
+        if (prevImg && prevImg.complete && prevImg.naturalWidth > 0) return prevImg;
+      }
+      if (next < TOTAL_FRAMES) {
+        const nextImg = imagesRef.current[next];
+        if (nextImg && nextImg.complete && nextImg.naturalWidth > 0) return nextImg;
+      }
+    }
+    return null;
+  };
+
+  // Draw sub-frame with sub-pixel cross-fading for cinematic smoothness
+  const drawSubFrame = (floatFrame: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return;
+
+    const clampedFrame = Math.max(0, Math.min(TOTAL_FRAMES - 1, floatFrame));
+    const baseIndex = Math.floor(clampedFrame);
+    const nextIndex = Math.min(TOTAL_FRAMES - 1, Math.ceil(clampedFrame));
+    const blend = clampedFrame - baseIndex;
+
+    const baseImg = getLoadedImage(baseIndex);
+    if (!baseImg) return;
 
     const width = window.innerWidth;
     const height = window.innerHeight;
+    if (width <= 0 || height <= 0) return;
 
-    // Scale canvas context for resolution / devicePixelRatio
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
+    const targetWidth = Math.round(width * dpr);
+    const targetHeight = Math.round(height * dpr);
+
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
     }
 
     ctx.save();
     ctx.scale(dpr, dpr);
 
-    // Calculate aspect ratio cover fitting
-    const imgRatio = imgToDraw.naturalWidth / imgToDraw.naturalHeight;
+    // Calculate aspect ratio cover fitting for base image
+    const imgWidth = baseImg.naturalWidth || 1920;
+    const imgHeight = baseImg.naturalHeight || 1080;
+    const imgRatio = imgWidth / imgHeight;
     const canvasRatio = width / height;
 
     let drawWidth = width;
@@ -76,32 +95,59 @@ export function HomepageScrollBackground() {
       offsetX = (width - drawWidth) / 2;
     }
 
-    ctx.clearRect(0, 0, width, height);
-    ctx.drawImage(imgToDraw, offsetX, offsetY, drawWidth, drawHeight);
-    ctx.restore();
+    // Base frame render
+    ctx.globalAlpha = 1;
+    ctx.drawImage(baseImg, offsetX, offsetY, drawWidth, drawHeight);
 
-    lastDrawnFrameRef.current = frameIndex;
+    // Sub-frame cross-fade interpolation with next adjacent frame
+    if (nextIndex !== baseIndex && blend > 0.005) {
+      const nextImg = getLoadedImage(nextIndex);
+      if (nextImg && nextImg !== baseImg) {
+        ctx.globalAlpha = blend;
+        ctx.drawImage(nextImg, offsetX, offsetY, drawWidth, drawHeight);
+      }
+    }
+
+    ctx.restore();
+    lastDrawnFloatFrameRef.current = floatFrame;
   };
 
-  // Preload frames in priority batches
+  // Preload frames in priority stream
   useEffect(() => {
-    let isMounted = true;
+    isMountedRef.current = true;
 
-    // Load first frame immediately to render initial view fast
+    // Load first frame immediately
     const firstImg = new Image();
     firstImg.src = getFramePath(0);
     firstImg.onload = () => {
-      if (!isMounted) return;
+      if (!isMountedRef.current) return;
       imagesRef.current[0] = firstImg;
       setIsLoading(false);
-      drawFrame(0);
+      drawSubFrame(0);
     };
 
-    // Load remaining frames in batches
-    const loadRemainingFrames = async () => {
+    // Load initial buffer (frames 1..10) with priority
+    const loadInitialBuffer = async () => {
+      const initialPromises = [];
+      for (let i = 1; i < Math.min(12, TOTAL_FRAMES); i++) {
+        initialPromises.push(
+          new Promise<void>((resolve) => {
+            const img = new Image();
+            img.src = getFramePath(i);
+            img.onload = () => {
+              if (isMountedRef.current) imagesRef.current[i] = img;
+              resolve();
+            };
+            img.onerror = () => resolve();
+          })
+        );
+      }
+      await Promise.all(initialPromises);
+
+      // Stream remaining frames in batches to avoid choking network/main thread
       const batchSize = 10;
-      for (let i = 1; i < TOTAL_FRAMES; i += batchSize) {
-        if (!isMounted) break;
+      for (let i = 12; i < TOTAL_FRAMES; i += batchSize) {
+        if (!isMountedRef.current) break;
 
         const batchPromises = [];
         for (let j = i; j < Math.min(i + batchSize, TOTAL_FRAMES); j++) {
@@ -110,9 +156,7 @@ export function HomepageScrollBackground() {
               const img = new Image();
               img.src = getFramePath(j);
               img.onload = () => {
-                if (isMounted) {
-                  imagesRef.current[j] = img;
-                }
+                if (isMountedRef.current) imagesRef.current[j] = img;
                 resolve();
               };
               img.onerror = () => resolve();
@@ -123,50 +167,73 @@ export function HomepageScrollBackground() {
       }
     };
 
-    loadRemainingFrames();
+    loadInitialBuffer();
 
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
     };
   }, []);
 
-  // Scroll listener & continuous smooth lerp loop
+  // Scroll listener & dynamic endpoint mapping before Franchise Purse & Budget Calculator
   useEffect(() => {
-    const handleScroll = () => {
-      const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
-      if (scrollHeight <= 0) return;
+    const updateScrollAndOpacity = () => {
+      const purseSection = document.getElementById('purse-calculator');
 
-      const progress = Math.max(0, Math.min(1, window.scrollY / scrollHeight));
+      // Calculate end scroll position (when #purse-calculator top enters the viewport)
+      let endScrollY = 0;
+      if (purseSection) {
+        const rect = purseSection.getBoundingClientRect();
+        endScrollY = rect.top + window.scrollY - window.innerHeight;
+      } else {
+        endScrollY = document.documentElement.scrollHeight - window.innerHeight;
+      }
+
+      if (endScrollY <= 0) endScrollY = 1;
+
+      const currentScrollY = window.scrollY;
+      const progress = Math.max(0, Math.min(1, currentScrollY / endScrollY));
       targetFrameRef.current = progress * (TOTAL_FRAMES - 1);
+
+      // Direct DOM Opacity Control without React State Re-renders
+      if (containerRef.current) {
+        if (currentScrollY > endScrollY) {
+          const fadeDistance = 150; // Smooth 150px fade out range into #purse-calculator
+          const fadeProgress = Math.min(1, (currentScrollY - endScrollY) / fadeDistance);
+          const opacity = 1 - fadeProgress;
+          containerRef.current.style.opacity = opacity.toFixed(3);
+          containerRef.current.style.visibility = opacity <= 0.001 ? 'hidden' : 'visible';
+        } else {
+          containerRef.current.style.opacity = '1';
+          containerRef.current.style.visibility = 'visible';
+        }
+      }
     };
 
     const handleResize = () => {
-      handleScroll();
-      drawFrame(Math.round(currentFrameRef.current));
+      updateScrollAndOpacity();
+      drawSubFrame(currentFrameRef.current);
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('scroll', updateScrollAndOpacity, { passive: true });
     window.addEventListener('resize', handleResize, { passive: true });
 
-    // Initial scroll calculation
-    handleScroll();
+    // Initial calculation
+    updateScrollAndOpacity();
 
-    // 60FPS Lerp loop for silky cinematic frame transition
+    // 60FPS Lerp loop for silky continuous sub-frame motion
     const tick = () => {
       const target = targetFrameRef.current;
       const current = currentFrameRef.current;
 
-      // Linear interpolation (lerp factor 0.16 for ultra-smooth responsiveness)
       const diff = target - current;
-      if (Math.abs(diff) > 0.001) {
-        currentFrameRef.current += diff * 0.16;
+      if (Math.abs(diff) > 0.0005) {
+        currentFrameRef.current += diff * 0.12;
       } else {
         currentFrameRef.current = target;
       }
 
-      const frameToDraw = Math.round(currentFrameRef.current);
-      if (frameToDraw !== lastDrawnFrameRef.current) {
-        drawFrame(frameToDraw);
+      if (Math.abs(currentFrameRef.current - lastDrawnFloatFrameRef.current) > 0.0005) {
+        drawSubFrame(currentFrameRef.current);
       }
 
       animFrameIdRef.current = requestAnimationFrame(tick);
@@ -175,7 +242,7 @@ export function HomepageScrollBackground() {
     animFrameIdRef.current = requestAnimationFrame(tick);
 
     return () => {
-      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', updateScrollAndOpacity);
       window.removeEventListener('resize', handleResize);
       if (animFrameIdRef.current) {
         cancelAnimationFrame(animFrameIdRef.current);
@@ -184,13 +251,16 @@ export function HomepageScrollBackground() {
   }, []);
 
   return (
-    <div className="fixed inset-0 w-full h-full pointer-events-none z-0 overflow-hidden select-none">
+    <div
+      ref={containerRef}
+      className="fixed inset-0 w-full h-full pointer-events-none z-0 overflow-hidden select-none transition-opacity duration-150"
+      style={{
+        opacity: isLoading ? 0 : 1,
+        visibility: isLoading ? 'hidden' : 'visible',
+      }}
+    >
       {/* Background Frame Canvas */}
-      <canvas
-        ref={canvasRef}
-        className="w-full h-full object-cover transition-opacity duration-500"
-        style={{ opacity: isLoading ? 0 : 1 }}
-      />
+      <canvas ref={canvasRef} className="w-full h-full object-cover" />
 
       {/* Subtle Vignette & Dark Overlay for Text Readability */}
       <div className="absolute inset-0 bg-gradient-to-b from-slate-950/60 via-slate-950/30 to-slate-950/75 pointer-events-none" />
@@ -198,3 +268,4 @@ export function HomepageScrollBackground() {
     </div>
   );
 }
+

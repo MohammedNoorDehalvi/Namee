@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const TOTAL_FRAMES = 240;
+const TOTAL_FRAMES = 60;
 
 const getFramePath = (index: number) => {
-  const paddedNum = String(index + 1).padStart(5, '0');
-  return `/frames/frame_${paddedNum}.jpg`;
+  const paddedNum = String(index + 1).padStart(3, '0');
+  return `/frames/frame_${paddedNum}.webp`;
 };
 
 export function HomepageScrollBackground() {
@@ -18,56 +18,6 @@ export function HomepageScrollBackground() {
   const animFrameIdRef = useRef<number | null>(null);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [loadedCount, setLoadedCount] = useState<number>(0);
-
-  // Preload frames in priority batches
-  useEffect(() => {
-    let isMounted = true;
-
-    // Load first frame immediately to render initial view fast
-    const firstImg = new Image();
-    firstImg.src = getFramePath(0);
-    firstImg.onload = () => {
-      if (!isMounted) return;
-      imagesRef.current[0] = firstImg;
-      setLoadedCount((prev) => prev + 1);
-      setIsLoading(false);
-      drawFrame(0);
-    };
-
-    // Load rest of the frames in parallel batches
-    const loadBatch = async () => {
-      const batchSize = 10;
-      for (let i = 1; i < TOTAL_FRAMES; i += batchSize) {
-        if (!isMounted) break;
-
-        const promises = [];
-        for (let j = i; j < Math.min(i + batchSize, TOTAL_FRAMES); j++) {
-          promises.push(
-            new Promise<void>((resolve) => {
-              const img = new Image();
-              img.src = getFramePath(j);
-              img.onload = () => {
-                if (isMounted) {
-                  imagesRef.current[j] = img;
-                  setLoadedCount((prev) => prev + 1);
-                }
-                resolve();
-              };
-              img.onerror = () => resolve();
-            })
-          );
-        }
-        await Promise.all(promises);
-      }
-    };
-
-    loadBatch();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   // Helper to draw a given frame index onto canvas with cover object-fit
   const drawFrame = (frameIndex: number) => {
@@ -133,6 +83,53 @@ export function HomepageScrollBackground() {
     lastDrawnFrameRef.current = frameIndex;
   };
 
+  // Preload frames in priority batches
+  useEffect(() => {
+    let isMounted = true;
+
+    // Load first frame immediately to render initial view fast
+    const firstImg = new Image();
+    firstImg.src = getFramePath(0);
+    firstImg.onload = () => {
+      if (!isMounted) return;
+      imagesRef.current[0] = firstImg;
+      setIsLoading(false);
+      drawFrame(0);
+    };
+
+    // Load remaining frames in batches
+    const loadRemainingFrames = async () => {
+      const batchSize = 10;
+      for (let i = 1; i < TOTAL_FRAMES; i += batchSize) {
+        if (!isMounted) break;
+
+        const batchPromises = [];
+        for (let j = i; j < Math.min(i + batchSize, TOTAL_FRAMES); j++) {
+          batchPromises.push(
+            new Promise<void>((resolve) => {
+              const img = new Image();
+              img.src = getFramePath(j);
+              img.onload = () => {
+                if (isMounted) {
+                  imagesRef.current[j] = img;
+                }
+                resolve();
+              };
+              img.onerror = () => resolve();
+            })
+          );
+        }
+        await Promise.all(batchPromises);
+      }
+    };
+
+    loadRemainingFrames();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Scroll listener & continuous smooth lerp loop
   useEffect(() => {
     const handleScroll = () => {
@@ -151,7 +148,7 @@ export function HomepageScrollBackground() {
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleResize, { passive: true });
 
-    // Initial scroll setup
+    // Initial scroll calculation
     handleScroll();
 
     // 60FPS Lerp loop for silky cinematic frame transition
@@ -159,10 +156,10 @@ export function HomepageScrollBackground() {
       const target = targetFrameRef.current;
       const current = currentFrameRef.current;
 
-      // Linear interpolation (lerp factor 0.14 for ultra-smooth responsiveness)
+      // Linear interpolation (lerp factor 0.16 for ultra-smooth responsiveness)
       const diff = target - current;
       if (Math.abs(diff) > 0.001) {
-        currentFrameRef.current += diff * 0.14;
+        currentFrameRef.current += diff * 0.16;
       } else {
         currentFrameRef.current = target;
       }
@@ -187,17 +184,17 @@ export function HomepageScrollBackground() {
   }, []);
 
   return (
-    <div className="fixed inset-0 w-full h-full pointer-events-none z-[-10] overflow-hidden select-none">
+    <div className="fixed inset-0 w-full h-full pointer-events-none z-0 overflow-hidden select-none">
       {/* Background Frame Canvas */}
       <canvas
         ref={canvasRef}
-        className="w-full h-full object-cover transition-opacity duration-700"
+        className="w-full h-full object-cover transition-opacity duration-500"
         style={{ opacity: isLoading ? 0 : 1 }}
       />
 
-      {/* Ambient Vignette & Gradient Overlay for Contrast & Readability */}
-      <div className="absolute inset-0 bg-gradient-to-b from-slate-950/60 via-slate-950/35 to-slate-950/80 pointer-events-none" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(3,7,18,0.65)_100%)] pointer-events-none" />
+      {/* Subtle Vignette & Dark Overlay for Text Readability */}
+      <div className="absolute inset-0 bg-gradient-to-b from-slate-950/60 via-slate-950/30 to-slate-950/75 pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,rgba(3,7,18,0.65)_100%)] pointer-events-none" />
     </div>
   );
 }

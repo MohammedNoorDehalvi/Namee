@@ -9,6 +9,8 @@ import { AuctionCalculator } from './AuctionCalculator';
 import { FaqSection } from './FaqSection';
 import { SaaSFooterCTA } from './SaaSFooterCTA';
 import { GlassCard } from '@/components/ui/liquid-glass';
+import { Marquee3D } from '@/components/ui/Marquee3D';
+import { PlayerPoolShowcase } from './PlayerPoolShowcase';
 
 const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
 
@@ -39,8 +41,23 @@ const journeys = [
   },
 ];
 
-const RIBBON_GOLD = 'Man Of The Match · Man Of The Tournament · APL 8 · The Grand Season · Tehmeed · Naved · Anas · ';
-const RIBBON_WHITE = 'Live Bidding · Real-Time Engine · Sub-10ms Latency · Budget Shield · Championship Strategy · Digital Cricket · ';
+const MARQUEE_ITEMS_1 = [
+  'Ashoka Premier League Season 8',
+  'Live Bidding Arena',
+  'Real-Time WebSocket Engine',
+  'Sub-10ms Sync Latency',
+  'Protected Franchise Purses',
+];
+
+const MARQUEE_ITEMS_2 = [
+  'Man Of The Match Awards',
+  'Grand Championship Auction',
+  'Tehmeed',
+  'Naved',
+  'Anas',
+  'Zaid',
+  'Hamza',
+];
 
 export function ScrollShowcase() {
   const reduceMotion = useReducedMotion();
@@ -80,17 +97,16 @@ export function ScrollShowcase() {
       {/* ── 3. BENTO GRID SAAS FEATURES ─────────────── */}
       <SaaSFeatures />
 
-      {/* ── 4. DUAL TRACK MARQUEE RIBBON ─────────────── */}
-      <div className="py-8 bg-slate-950/40 border-y border-white/10 overflow-hidden select-none backdrop-blur-md">
-        <div className="flex whitespace-nowrap text-sm font-bold tracking-widest uppercase animate-marquee">
-          <span className="text-amber-400 mx-4">{RIBBON_GOLD}{RIBBON_GOLD}</span>
-        </div>
-        <div className="flex whitespace-nowrap text-sm font-semibold tracking-widest uppercase text-cyan-400 opacity-90 mt-2 animate-marquee-reverse">
-          <span className="mx-4">{RIBBON_WHITE}{RIBBON_WHITE}</span>
-        </div>
+      {/* ── 4. 3D MARQUEE BROADCAST RIBBONS ───────────── */}
+      <div className="space-y-2 py-4">
+        <Marquee3D items={MARQUEE_ITEMS_1} direction="left" speed={28} />
+        <Marquee3D items={MARQUEE_ITEMS_2} direction="right" speed={22} />
       </div>
 
-      {/* ── 5. THE AUCTION JOURNEY TIMELINE ──────────── */}
+      {/* ── 5. INTERACTIVE PLAYER POOL GALLERY ───────── */}
+      <PlayerPoolShowcase />
+
+      {/* ── 6. THE AUCTION JOURNEY TIMELINE ──────────── */}
       <section className="py-24 max-w-7xl mx-auto px-4 md:px-6">
         <GlassCard className="p-8 mb-12 text-center max-w-3xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-400/20 text-cyan-300 text-xs font-semibold uppercase tracking-wider mb-4">
@@ -141,14 +157,15 @@ export function ScrollShowcase() {
         </div>
       </section>
 
-      {/* ── 6. STRATEGY & PURSE CALCULATOR ──────────── */}
+      {/* ── 7. STRATEGY & PURSE CALCULATOR ──────────── */}
       <AuctionCalculator />
 
-      {/* ── 7. FAQ ACCORDION ────────────────────────── */}
+      {/* ── 8. FAQ ACCORDION ────────────────────────── */}
       <FaqSection />
 
-      {/* ── 8. HIGH-IMPACT SAAS CTA ──────────────────── */}
+      {/* ── 9. HIGH-IMPACT SAAS CTA ──────────────────── */}
       <SaaSFooterCTA />
     </main>
   );
 }
+

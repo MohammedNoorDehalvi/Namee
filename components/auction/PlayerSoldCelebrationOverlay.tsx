@@ -7,6 +7,8 @@ import { Hammer, PartyPopper, Sparkles, Award } from 'lucide-react';
 import type { SaleCelebration } from '@/hooks/usePlayerSoldCelebration';
 import { initials } from '@/lib/format';
 import { GlassEffect, GlassFilter } from '@/components/ui/liquid-glass';
+import { BorderBeam } from '@/components/ui/BorderBeam';
+import { Confetti } from '@/components/ui/Confetti';
 
 type CelebrationParticle = {
   id: string;
@@ -227,6 +229,7 @@ export function PlayerSoldCelebrationOverlay({ celebration, particles: providedP
         transition={{ duration: 0.25 }}
       >
         <GlassFilter />
+        <Confetti isActive={true} duration={4000} particleCount={150} zIndex={10000} />
 
         {/* Backdrop overlay */}
         <motion.div
@@ -313,7 +316,7 @@ export function PlayerSoldCelebrationOverlay({ celebration, particles: providedP
           />
         ))}
 
-        {/* Central Liquid Glass Celebration Card */}
+        {/* Central Liquid Glass Celebration Card with BorderBeam */}
         <div
           className="absolute inset-0 flex items-center justify-center z-10"
           style={{
@@ -334,87 +337,89 @@ export function PlayerSoldCelebrationOverlay({ celebration, particles: providedP
               maxHeight: `min(${layout.cardMaxHeight}px, 85vh)`,
             }}
           >
-            <GlassEffect className="w-full h-full rounded-[2.2rem] p-6 sm:p-8 md:p-10 border border-amber-300/30 shadow-[0_32px_120px_rgba(0,0,0,0.8)]">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.22),transparent_60%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.18),transparent_50%)] pointer-events-none" />
+            <BorderBeam lightColor="#F59E0B" lightWidth={350} duration={6}>
+              <GlassEffect className="w-full h-full rounded-[2.2rem] p-6 sm:p-8 md:p-10 border border-amber-300/30 shadow-[0_32px_120px_rgba(0,0,0,0.8)]">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.22),transparent_60%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.18),transparent_50%)] pointer-events-none" />
 
-              <div className="relative z-10 grid gap-6 md:grid-cols-[auto,minmax(0,1fr),auto] md:items-center md:gap-8">
-                {/* Gavel Hammer Strike Icon */}
-                <motion.div
-                  className="relative flex items-center justify-center rounded-3xl border border-amber-300/40 bg-amber-400/20 text-amber-300 shadow-[0_0_40px_rgba(245,158,11,0.35)]"
-                  style={{
-                    width: `${layout.iconSize * 1.8}px`,
-                    height: `${layout.iconSize * 1.8}px`,
-                  }}
-                  animate={
-                    reduceMotion
-                      ? undefined
-                      : { rotate: [0, -40, 15, -10, 0], scale: [1, 1.15, 1] }
-                  }
-                  transition={{ duration: 1.2, ease: 'easeOut', repeat: Infinity, repeatDelay: 1.5 }}
-                >
-                  <span className="absolute inset-0 rounded-3xl bg-amber-400/20 blur-xl animate-pulse" />
-                  <Hammer size={layout.iconSize} strokeWidth={2.4} className="relative z-10" />
-                </motion.div>
+                <div className="relative z-10 grid gap-6 md:grid-cols-[auto,minmax(0,1fr),auto] md:items-center md:gap-8">
+                  {/* Gavel Hammer Strike Icon */}
+                  <motion.div
+                    className="relative flex items-center justify-center rounded-3xl border border-amber-300/40 bg-amber-400/20 text-amber-300 shadow-[0_0_40px_rgba(245,158,11,0.35)]"
+                    style={{
+                      width: `${layout.iconSize * 1.8}px`,
+                      height: `${layout.iconSize * 1.8}px`,
+                    }}
+                    animate={
+                      reduceMotion
+                        ? undefined
+                        : { rotate: [0, -40, 15, -10, 0], scale: [1, 1.15, 1] }
+                    }
+                    transition={{ duration: 1.2, ease: 'easeOut', repeat: Infinity, repeatDelay: 1.5 }}
+                  >
+                    <span className="absolute inset-0 rounded-3xl bg-amber-400/20 blur-xl animate-pulse" />
+                    <Hammer size={layout.iconSize} strokeWidth={2.4} className="relative z-10" />
+                  </motion.div>
 
-                {/* Player Sold Info */}
-                <div className="min-w-0 text-center md:text-left space-y-2">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-400/20 px-4 py-1.5 text-xs font-black uppercase tracking-[0.25em] text-emerald-200 shadow-md">
-                    <Sparkles size={14} className="text-emerald-300" />
-                    <span>SOLD TO</span>
+                  {/* Player Sold Info */}
+                  <div className="min-w-0 text-center md:text-left space-y-2">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-400/20 px-4 py-1.5 text-xs font-black uppercase tracking-[0.25em] text-emerald-200 shadow-md">
+                      <Sparkles size={14} className="text-emerald-300" />
+                      <span>SOLD TO</span>
+                    </div>
+
+                    <h3 className="break-words text-[clamp(2.2rem,5vw,5rem)] font-black uppercase tracking-tight leading-none text-white font-display">
+                      {celebration.playerName}
+                    </h3>
+
+                    <div className="flex items-center justify-center md:justify-start gap-2 text-amber-300 font-extrabold text-lg sm:text-xl md:text-2xl">
+                      <Award size={20} className="text-amber-400" />
+                      <span>{celebration.teamName}</span>
+                    </div>
+
+                    <p className="text-xs font-medium text-slate-300/80 tracking-wide pt-1">
+                      Celebration active for 3 seconds — non-blocking interface.
+                    </p>
                   </div>
 
-                  <h3 className="break-words text-[clamp(2.2rem,5vw,5rem)] font-black uppercase tracking-tight leading-none text-white font-display">
-                    {celebration.playerName}
-                  </h3>
+                  {/* Team Avatar Badge */}
+                  <motion.div
+                    className="mx-auto flex flex-col items-center gap-3 md:mx-0"
+                    animate={reduceMotion ? undefined : { y: [0, -8, 0] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                  >
+                    <div
+                      className="relative flex items-center justify-center overflow-hidden rounded-full border-2 border-amber-300/40 bg-white/10 p-1 shadow-2xl"
+                      style={{
+                        width: `${layout.avatarSize}px`,
+                        height: `${layout.avatarSize}px`,
+                      }}
+                    >
+                      {/* Rotating Gold Accent Ring */}
+                      <div className="absolute inset-0 rounded-full border-2 border-dashed border-amber-400/60 animate-spin" style={{ animationDuration: '10s' }} />
+                      <div className="relative w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-slate-900/90">
+                        <TeamLogo logoUrl={celebration.teamLogo} label={celebration.teamName} />
+                      </div>
+                    </div>
 
-                  <div className="flex items-center justify-center md:justify-start gap-2 text-amber-300 font-extrabold text-lg sm:text-xl md:text-2xl">
-                    <Award size={20} className="text-amber-400" />
-                    <span>{celebration.teamName}</span>
-                  </div>
-
-                  <p className="text-xs font-medium text-slate-300/80 tracking-wide pt-1">
-                    Celebration active for 3 seconds — non-blocking interface.
-                  </p>
+                    <span className="rounded-full border border-amber-300/30 bg-amber-400/15 px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">
+                      {celebration.teamName}
+                    </span>
+                  </motion.div>
                 </div>
 
-                {/* Team Avatar Badge */}
+                {/* Card Footer Divider */}
                 <motion.div
-                  className="mx-auto flex flex-col items-center gap-3 md:mx-0"
-                  animate={reduceMotion ? undefined : { y: [0, -8, 0] }}
-                  transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                  className="relative z-10 mt-6 flex items-center justify-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] text-white/60"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 0.4 }}
                 >
-                  <div
-                    className="relative flex items-center justify-center overflow-hidden rounded-full border-2 border-amber-300/40 bg-white/10 p-1 shadow-2xl"
-                    style={{
-                      width: `${layout.avatarSize}px`,
-                      height: `${layout.avatarSize}px`,
-                    }}
-                  >
-                    {/* Rotating Gold Accent Ring */}
-                    <div className="absolute inset-0 rounded-full border-2 border-dashed border-amber-400/60 animate-spin" style={{ animationDuration: '10s' }} />
-                    <div className="relative w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-slate-900/90">
-                      <TeamLogo logoUrl={celebration.teamLogo} label={celebration.teamName} />
-                    </div>
-                  </div>
-
-                  <span className="rounded-full border border-amber-300/30 bg-amber-400/15 px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">
-                    {celebration.teamName}
-                  </span>
+                  <span className="h-px w-12 bg-gradient-to-r from-transparent to-amber-300/40" />
+                  <span className="text-amber-300">AUCTION MOMENT</span>
+                  <span className="h-px w-12 bg-gradient-to-l from-transparent to-amber-300/40" />
                 </motion.div>
-              </div>
-
-              {/* Card Footer Divider */}
-              <motion.div
-                className="relative z-10 mt-6 flex items-center justify-center gap-3 text-[11px] font-black uppercase tracking-[0.3em] text-white/60"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2, duration: 0.4 }}
-              >
-                <span className="h-px w-12 bg-gradient-to-r from-transparent to-amber-300/40" />
-                <span className="text-amber-300">AUCTION MOMENT</span>
-                <span className="h-px w-12 bg-gradient-to-l from-transparent to-amber-300/40" />
-              </motion.div>
-            </GlassEffect>
+              </GlassEffect>
+            </BorderBeam>
           </motion.div>
         </div>
       </motion.div>
@@ -422,3 +427,4 @@ export function PlayerSoldCelebrationOverlay({ celebration, particles: providedP
     portalTarget,
   );
 }
+

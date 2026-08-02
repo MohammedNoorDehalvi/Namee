@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Gavel, Radio, RefreshCw, Sparkles, Trophy, Zap, ShieldCheck } from 'lucide-react';
 import { formatMoney } from '@/lib/format';
+import { BorderBeam } from '@/components/ui/BorderBeam';
+import { AnimatedBeam } from '@/components/ui/AnimatedBeam';
+import { Confetti } from '@/components/ui/Confetti';
 
 interface TeamConfig {
   id: string;
@@ -118,6 +121,7 @@ export function LiveBidSimulator() {
   const [currentAmount, setCurrentAmount] = useState<number>(5000);
   const [teamBudgets, setTeamBudgets] = useState<Record<string, number>>(INITIAL_TEAM_BUDGETS);
   const [isSold, setIsSold] = useState<boolean>(false);
+  const [showConfetti, setShowConfetti] = useState<boolean>(false);
 
   const activeTeam = DEMO_TEAMS.find((t) => t.id === selectedTeamId) || DEMO_TEAMS[0];
   const userBudget = teamBudgets[selectedTeamId] ?? 50000;
@@ -146,8 +150,12 @@ export function LiveBidSimulator() {
       [activeTeam.id]: Math.max(0, (prev[activeTeam.id] ?? 50000) - increment),
     }));
 
-    // Trigger AI counter bid from another team if under max budget
-    if (nextAmount < 45000) {
+    // Trigger celebration when bid reaches milestone
+    if (nextAmount >= 12000) {
+      setShowConfetti(true);
+      setIsSold(true);
+    } else if (nextAmount < 45000) {
+      // Trigger AI counter bid from another team if under max budget
       setTimeout(() => {
         const rivalTeams = DEMO_TEAMS.filter((t) => t.id !== activeTeam.id);
         const randomRival = rivalTeams[Math.floor(Math.random() * rivalTeams.length)];
@@ -179,10 +187,13 @@ export function LiveBidSimulator() {
     setCurrentAmount(5000);
     setTeamBudgets(INITIAL_TEAM_BUDGETS);
     setIsSold(false);
+    setShowConfetti(false);
   };
 
   return (
     <section className="py-24 relative overflow-hidden bg-slate-950/60 border-y border-white/5">
+      <Confetti isActive={showConfetti} duration={5000} onComplete={() => setShowConfetti(false)} />
+
       {/* Background Glows */}
       <div className="absolute top-1/2 left-1/4 -translate-y-1/2 w-96 h-96 bg-cyan-500/10 blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute top-1/2 right-1/4 -translate-y-1/2 w-96 h-96 bg-amber-500/10 blur-[120px] rounded-full pointer-events-none" />
@@ -201,6 +212,16 @@ export function LiveBidSimulator() {
           <p className="text-slate-400 text-base md:text-lg">
             Choose your franchise below and place live bids in our zero-latency auction simulator. Watch rival team captains respond in real time.
           </p>
+
+          {/* Real-time Connection Pulse Beam */}
+          <div className="max-w-md mx-auto pt-2">
+            <div className="flex justify-between text-[11px] text-slate-400 font-semibold mb-1">
+              <span>Captain Portal</span>
+              <span className="text-cyan-400 font-bold">Sub-10ms WebSocket Stream</span>
+              <span>Live Arena</span>
+            </div>
+            <AnimatedBeam duration={2.5} gradientStartColor="#06B6D4" gradientStopColor="#F59E0B" />
+          </div>
         </div>
 
         {/* Team Controller Selection Chips */}
@@ -238,176 +259,179 @@ export function LiveBidSimulator() {
           </div>
         </div>
 
-        {/* Interactive Simulator Card Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left: Player Card on Lot */}
-          <div className="lg:col-span-5 bento-card border border-white/10 bg-slate-900/80 backdrop-blur-xl rounded-3xl p-6 md:p-8 space-y-6">
-            {/* Live Lot Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                </span>
-                <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">
-                  LOT #1 · ACTIVE AUCTION
-                </span>
-              </div>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-white/5 text-slate-300 border border-white/10">
-                SET A · MARQUEE
-              </span>
-            </div>
-
-            {/* Player Info Badge */}
-            <div className="flex items-center gap-5">
-              <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-500 via-amber-600 to-cyan-600 p-[2px] shadow-xl shadow-amber-500/20 shrink-0">
-                <img
-                  src={INITIAL_PLAYER.photoUrl}
-                  alt={INITIAL_PLAYER.name}
-                  className="w-full h-full object-cover rounded-[14px] bg-slate-950"
-                />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-2xl font-bold text-white font-display truncate">{INITIAL_PLAYER.name}</h3>
-                <p className="text-sm font-semibold text-cyan-400 truncate">{INITIAL_PLAYER.role}</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-medium">
-                    Base: {formatMoney(INITIAL_PLAYER.basePrice)}
-                  </span>
-                  <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-medium">
-                    APL Season 8
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Current Highest Bid Box */}
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border border-cyan-500/30 space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-                <span>CURRENT HIGHEST BID</span>
-                <span className="text-cyan-400 flex items-center gap-1 font-semibold">
-                  <Zap className="w-3.5 h-3.5 fill-cyan-400" /> LIVE TICKER
-                </span>
-              </div>
-              <div className="flex items-baseline justify-between">
-                <motion.span
-                  key={currentAmount}
-                  initial={{ scale: 1.15, color: '#38BDF8' }}
-                  animate={{ scale: 1, color: '#FFFFFF' }}
-                  transition={{ duration: 0.3 }}
-                  className="text-4xl font-extrabold text-white font-display tracking-tight"
-                >
-                  {formatMoney(currentAmount)}
-                </motion.span>
-                <span className="text-xs font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-1 rounded-full">
-                  +{formatMoney(1000)} Increment
-                </span>
-              </div>
-            </div>
-
-            {/* Active Team Purse Meter */}
-            <div className="space-y-2 pt-2">
-              <div className="flex justify-between text-xs font-medium text-slate-400">
-                <span>{activeTeam.name.toUpperCase()} PURSE</span>
-                <span className="text-amber-400 font-bold">{formatMoney(userBudget)} / ₹50,000</span>
-              </div>
-              <div className="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden p-0.5">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-amber-500 to-cyan-500 transition-all duration-500"
-                  style={{ width: `${Math.min(100, Math.max(0, (userBudget / 50000) * 100))}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Interactive Bid Buttons */}
-            <div className="space-y-3 pt-2">
-              <button
-                onClick={handleUserBid}
-                disabled={isSold || userBudget < 1000}
-                className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-slate-950 font-extrabold text-base shadow-xl shadow-amber-500/25 hover:shadow-amber-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 group cursor-pointer disabled:opacity-50"
-              >
-                <Gavel className="w-5 h-5 group-hover:rotate-12 transition-transform duration-200" />
-                <span>BID AS {activeTeam.name.toUpperCase()} ({formatMoney(currentAmount + 1000)})</span>
-              </button>
-
-              <button
-                onClick={handleReset}
-                className="w-full py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Reset Demo Simulation</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Right: Live Feed Log */}
-          <div className="lg:col-span-7 bento-card border border-white/10 bg-slate-900/80 backdrop-blur-xl rounded-3xl p-6 md:p-8 space-y-6 flex flex-col justify-between min-h-[480px]">
-            <div>
-              {/* Header */}
+        {/* Interactive Simulator Card Grid wrapped with Border Beam */}
+        <BorderBeam lightColor="#F59E0B" lightWidth={300} duration={7}>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start p-2">
+            {/* Left: Player Card on Lot */}
+            <div className="lg:col-span-5 bento-card border border-white/10 bg-slate-900/80 backdrop-blur-xl rounded-3xl p-6 md:p-8 space-y-6">
+              {/* Live Lot Header */}
               <div className="flex items-center justify-between pb-4 border-b border-white/10">
                 <div className="flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-amber-400" />
-                  <h4 className="text-lg font-bold text-white font-display">Live Bid Stream</h4>
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">
+                    LOT #1 · ACTIVE AUCTION
+                  </span>
                 </div>
-                <span className="text-xs text-slate-400 font-medium">{bids.length} Total Bids</span>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-white/5 text-slate-300 border border-white/10">
+                  SET A · MARQUEE
+                </span>
               </div>
 
-              {/* Bids Stream List */}
-              <div className="mt-6 space-y-3 max-h-[340px] overflow-y-auto pr-1">
-                <AnimatePresence initial={false}>
-                  {bids.map((bid, index) => (
-                    <motion.div
-                      key={bid.id}
-                      initial={{ opacity: 0, y: -15, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                      className={`p-4 rounded-2xl border transition-all flex items-center justify-between ${
-                        index === 0
-                          ? 'bg-slate-800/90 border-cyan-500/40 shadow-lg shadow-cyan-950/40'
-                          : 'bg-slate-950/50 border-white/5 opacity-80'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={bid.logoUrl}
-                          alt={bid.team}
-                          className="w-10 h-10 rounded-xl object-cover border border-white/10 bg-slate-950 shrink-0"
-                        />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-white">{bid.team}</span>
-                            {index === 0 && (
-                              <span className="px-2 py-0.5 text-[10px] uppercase font-extrabold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-full">
-                                Leading Bid
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-xs text-slate-400">{bid.captain} · {bid.time}</span>
-                        </div>
-                      </div>
+              {/* Player Info Badge */}
+              <div className="flex items-center gap-5">
+                <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-500 via-amber-600 to-cyan-600 p-[2px] shadow-xl shadow-amber-500/20 shrink-0">
+                  <img
+                    src={INITIAL_PLAYER.photoUrl}
+                    alt={INITIAL_PLAYER.name}
+                    className="w-full h-full object-cover rounded-[14px] bg-slate-950"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-2xl font-bold text-white font-display truncate">{INITIAL_PLAYER.name}</h3>
+                  <p className="text-sm font-semibold text-cyan-400 truncate">{INITIAL_PLAYER.role}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-medium">
+                      Base: {formatMoney(INITIAL_PLAYER.basePrice)}
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-medium">
+                      APL Season 8
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-                      <div className="text-right">
-                        <span className="text-lg font-extrabold text-white font-display">{formatMoney(bid.amount)}</span>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
+              {/* Current Highest Bid Box */}
+              <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border border-cyan-500/30 space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
+                  <span>CURRENT HIGHEST BID</span>
+                  <span className="text-cyan-400 flex items-center gap-1 font-semibold">
+                    <Zap className="w-3.5 h-3.5 fill-cyan-400" /> LIVE TICKER
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <motion.span
+                    key={currentAmount}
+                    initial={{ scale: 1.15, color: '#38BDF8' }}
+                    animate={{ scale: 1, color: '#FFFFFF' }}
+                    transition={{ duration: 0.3 }}
+                    className="text-4xl font-extrabold text-white font-display tracking-tight"
+                  >
+                    {formatMoney(currentAmount)}
+                  </motion.span>
+                  <span className="text-xs font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-1 rounded-full">
+                    +{formatMoney(1000)} Increment
+                  </span>
+                </div>
+              </div>
+
+              {/* Active Team Purse Meter */}
+              <div className="space-y-2 pt-2">
+                <div className="flex justify-between text-xs font-medium text-slate-400">
+                  <span>{activeTeam.name.toUpperCase()} PURSE</span>
+                  <span className="text-amber-400 font-bold">{formatMoney(userBudget)} / ₹50,000</span>
+                </div>
+                <div className="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden p-0.5">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-amber-500 to-cyan-500 transition-all duration-500"
+                    style={{ width: `${Math.min(100, Math.max(0, (userBudget / 50000) * 100))}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Interactive Bid Buttons */}
+              <div className="space-y-3 pt-2">
+                <button
+                  onClick={handleUserBid}
+                  disabled={isSold || userBudget < 1000}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-slate-950 font-extrabold text-base shadow-xl shadow-amber-500/25 hover:shadow-amber-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 group cursor-pointer disabled:opacity-50"
+                >
+                  <Gavel className="w-5 h-5 group-hover:rotate-12 transition-transform duration-200" />
+                  <span>BID AS {activeTeam.name.toUpperCase()} ({formatMoney(currentAmount + 1000)})</span>
+                </button>
+
+                <button
+                  onClick={handleReset}
+                  className="w-full py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Reset Demo Simulation</span>
+                </button>
               </div>
             </div>
 
-            {/* Bottom Status Banner */}
-            <div className="p-4 rounded-xl bg-cyan-950/40 border border-cyan-500/20 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Sparkles className="w-5 h-5 text-cyan-400" />
-                <p className="text-xs text-slate-300">
-                  Sub-10ms WebSocket latency ensures instant bid synchronization for all franchise captains.
-                </p>
+            {/* Right: Live Feed Log */}
+            <div className="lg:col-span-7 bento-card border border-white/10 bg-slate-900/80 backdrop-blur-xl rounded-3xl p-6 md:p-8 space-y-6 flex flex-col justify-between min-h-[480px]">
+              <div>
+                {/* Header */}
+                <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="w-5 h-5 text-amber-400" />
+                    <h4 className="text-lg font-bold text-white font-display">Live Bid Stream</h4>
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium">{bids.length} Total Bids</span>
+                </div>
+
+                {/* Bids Stream List */}
+                <div className="mt-6 space-y-3 max-h-[340px] overflow-y-auto pr-1">
+                  <AnimatePresence initial={false}>
+                    {bids.map((bid, index) => (
+                      <motion.div
+                        key={bid.id}
+                        initial={{ opacity: 0, y: -15, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                        className={`p-4 rounded-2xl border transition-all flex items-center justify-between ${
+                          index === 0
+                            ? 'bg-slate-800/90 border-cyan-500/40 shadow-lg shadow-cyan-950/40'
+                            : 'bg-slate-950/50 border-white/5 opacity-80'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={bid.logoUrl}
+                            alt={bid.team}
+                            className="w-10 h-10 rounded-xl object-cover border border-white/10 bg-slate-950 shrink-0"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-white">{bid.team}</span>
+                              {index === 0 && (
+                                <span className="px-2 py-0.5 text-[10px] uppercase font-extrabold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-full">
+                                  Leading Bid
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-slate-400">{bid.captain} · {bid.time}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-lg font-extrabold text-white font-display">{formatMoney(bid.amount)}</span>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              {/* Bottom Status Banner */}
+              <div className="p-4 rounded-xl bg-cyan-950/40 border border-cyan-500/20 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Sparkles className="w-5 h-5 text-cyan-400" />
+                  <p className="text-xs text-slate-300">
+                    Sub-10ms WebSocket latency ensures instant bid synchronization for all franchise captains.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </BorderBeam>
       </div>
     </section>
   );
 }
+

@@ -15,8 +15,7 @@ import {
   ShieldCheck,
   Zap,
 } from 'lucide-react';
-
-import { GlassCard } from '@/components/ui/liquid-glass';
+import { SpotlightCard } from '@/components/ui/SpotlightCard';
 
 const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
 
@@ -53,7 +52,7 @@ export function SaaSFeatures() {
             transition={{ duration: 0.7, ease: EASE_OUT_EXPO }}
             className="lg:col-span-7 h-full"
           >
-            <GlassCard variant="dark" className="h-full border border-white/10 flex flex-col justify-between">
+            <SpotlightCard spotlightColor="rgba(6, 182, 212, 0.18)" className="h-full border border-white/10 flex flex-col justify-between p-8">
               <div className="space-y-4">
                 <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
                   <Radio className="w-6 h-6 animate-pulse" />
@@ -87,7 +86,7 @@ export function SaaSFeatures() {
                   </div>
                 </div>
               </div>
-            </GlassCard>
+            </SpotlightCard>
           </motion.div>
 
           {/* Bento 2: Budget Shield (5 Cols) */}
@@ -98,7 +97,7 @@ export function SaaSFeatures() {
             transition={{ duration: 0.7, delay: 0.1, ease: EASE_OUT_EXPO }}
             className="lg:col-span-5 h-full"
           >
-            <GlassCard variant="dark" className="h-full border border-white/10 flex flex-col justify-between">
+            <SpotlightCard spotlightColor="rgba(16, 185, 129, 0.18)" className="h-full border border-white/10 flex flex-col justify-between p-8">
               <div className="space-y-4">
                 <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
                   <ShieldCheck className="w-6 h-6" />
@@ -121,7 +120,7 @@ export function SaaSFeatures() {
                   </div>
                 ))}
               </div>
-            </GlassCard>
+            </SpotlightCard>
           </motion.div>
 
           {/* Bento 3: Captain Command Desk (4 Cols) */}
@@ -132,7 +131,7 @@ export function SaaSFeatures() {
             transition={{ duration: 0.7, delay: 0.2, ease: EASE_OUT_EXPO }}
             className="lg:col-span-4 h-full"
           >
-            <GlassCard variant="dark" className="h-full border border-white/10 space-y-4">
+            <SpotlightCard spotlightColor="rgba(245, 158, 11, 0.18)" className="h-full border border-white/10 space-y-4 p-8">
               <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
                 <Gavel className="w-6 h-6" />
               </div>
@@ -140,7 +139,7 @@ export function SaaSFeatures() {
               <p className="text-slate-400 text-sm leading-relaxed">
                 Designed specifically for fast decision-making during bidding wars with quick-increment hotkeys, target squad wishlist, and remaining purse gauges.
               </p>
-            </GlassCard>
+            </SpotlightCard>
           </motion.div>
 
           {/* Bento 4: Live Broadcast Display (4 Cols) */}
@@ -151,7 +150,7 @@ export function SaaSFeatures() {
             transition={{ duration: 0.7, delay: 0.3, ease: EASE_OUT_EXPO }}
             className="lg:col-span-4 h-full"
           >
-            <GlassCard variant="dark" className="h-full border border-white/10 space-y-4">
+            <SpotlightCard spotlightColor="rgba(139, 92, 246, 0.18)" className="h-full border border-white/10 space-y-4 p-8">
               <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
                 <MonitorPlay className="w-6 h-6" />
               </div>
@@ -159,7 +158,7 @@ export function SaaSFeatures() {
               <p className="text-slate-400 text-sm leading-relaxed">
                 Full-screen live stream overlay mode for big stadium screens, YouTube live streams, and fan viewing hubs with audio hammer drop sound effects.
               </p>
-            </GlassCard>
+            </SpotlightCard>
           </motion.div>
 
           {/* Bento 5: Analytics & Export (4 Cols) */}
@@ -170,7 +169,7 @@ export function SaaSFeatures() {
             transition={{ duration: 0.7, delay: 0.4, ease: EASE_OUT_EXPO }}
             className="lg:col-span-4 h-full"
           >
-            <GlassCard variant="dark" className="h-full border border-white/10 space-y-4">
+            <SpotlightCard spotlightColor="rgba(59, 130, 246, 0.18)" className="h-full border border-white/10 space-y-4 p-8">
               <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
                 <FileSpreadsheet className="w-6 h-6" />
               </div>
@@ -178,10 +177,11 @@ export function SaaSFeatures() {
               <p className="text-slate-400 text-sm leading-relaxed">
                 Export official final squad rosters, captain bidding audit trails, and contract summaries to PDF & Excel immediately when the auction closes.
               </p>
-            </GlassCard>
+            </SpotlightCard>
           </motion.div>
         </div>
       </div>
     </section>
   );
 }
+

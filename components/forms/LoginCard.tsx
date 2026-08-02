@@ -7,6 +7,8 @@ import { saveSession } from '@/hooks/useSession';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from '@/components/ui/AppToaster';
 import { GlassCard, GlassButton } from '@/components/ui/liquid-glass';
+import { BorderBeam } from '@/components/ui/BorderBeam';
+import { SpotlightCard } from '@/components/ui/SpotlightCard';
 
 export function LoginCard({ type }: { type: 'captain' | 'admin' }) {
   const [name, setName] = useState('');
@@ -43,7 +45,9 @@ export function LoginCard({ type }: { type: 'captain' | 'admin' }) {
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-transparent px-4 py-16 flex items-center justify-center">
       <form onSubmit={onSubmit} className="w-full max-w-md">
-        <GlassCard className="p-8 md:p-10 rounded-3xl space-y-6">
+        <SpotlightCard spotlightColor="rgba(245, 158, 11, 0.18)" className="p-8 md:p-10 rounded-3xl space-y-6 border-white/15 bg-slate-900/90 backdrop-blur-2xl">
+          <BorderBeam lightColor="#F59E0B" lightWidth={260} duration={8} />
+
           <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-400/20 text-amber-300">
             <LockKeyhole className="h-7 w-7" />
           </div>
@@ -91,8 +95,9 @@ export function LoginCard({ type }: { type: 'captain' | 'admin' }) {
               <span>{loading ? 'Checking...' : 'Login'}</span>
             </GlassButton>
           </button>
-        </GlassCard>
+        </SpotlightCard>
       </form>
     </main>
   );
 }
+

@@ -47,6 +47,7 @@ async function fetchLiveState() {
 }
 
 export function useAuctionRealtime(options: RealtimeOptions = {}) {
+  // Aggressive poll kept as requested by project owner — do not raise this default.
   const pollMs = Math.max(500, options.pollMs ?? 900);
 
   const [season, setSeason] = useState<Season | null>(null);
@@ -58,6 +59,8 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
   const [events, setEvents] = useState<AuctionEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [serverCurrentBid, setServerCurrentBid] = useState(0);
+  /** true when Realtime channel is not SUBSCRIBED */
+  const [realtimeDisconnected, setRealtimeDisconnected] = useState(false);
 
   const inFlightRef = useRef(false);
   const mountedRef = useRef(false);
@@ -115,7 +118,11 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, softRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'captains' }, softRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'auction_events' }, softRefresh)
-      .subscribe();
+      .subscribe((status) => {
+        if (!mountedRef.current) return;
+        // SUBSCRIBED = connected; anything else shows reconnecting banner
+        setRealtimeDisconnected(status !== 'SUBSCRIBED');
+      });
 
     const intervalId = window.setInterval(softRefresh, pollMs);
     const focusRefresh = () => softRefresh();
@@ -144,5 +151,17 @@ export function useAuctionRealtime(options: RealtimeOptions = {}) {
     );
   }, [auction, currentPlayer, serverCurrentBid]);
 
-  return { season, auction, currentPlayer, players, teams, bids, events, loading, currentBid, refresh: loadAuction };
+  return {
+    season,
+    auction,
+    currentPlayer,
+    players,
+    teams,
+    bids,
+    events,
+    loading,
+    currentBid,
+    refresh: loadAuction,
+    realtimeDisconnected,
+  };
 }

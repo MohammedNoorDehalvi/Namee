@@ -19,7 +19,7 @@ type Options = {
   fallbackTeam?: Team | null;
 };
 
-const CELEBRATION_VISIBLE_MS = 3000;
+const CELEBRATION_VISIBLE_MS = 4200;
 
 function resolveTeam(
   event: AuctionEvent,

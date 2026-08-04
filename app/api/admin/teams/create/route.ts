@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 
 import { createAuctionEvent, jsonError, requireAdminRequest } from '@/lib/auction-server';
 import { getActiveSeason } from '@/lib/season-server';
+import { isStrongPassword, passwordPolicyMessage, sanitizeText } from '@/lib/security/sanitize';
 
 export const runtime = 'nodejs';
 
@@ -20,7 +21,7 @@ type ParsedRequest = {
 };
 
 function cleanText(value: unknown) {
-  return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
+  return sanitizeText(value, 120);
 }
 
 function cleanNumber(value: unknown, fallback: number) {
@@ -134,14 +135,23 @@ async function findTeam(supabase: any, seasonId: string, teamName: string) {
 }
 
 async function findCaptain(supabase: any, seasonId: string, captainName: string, teamName: string) {
-  const { data } = await supabase
-    .from('captains')
-    .select('*')
-    .eq('season_id', seasonId)
-    .or(`captain_name.ilike.${captainName},team_name.ilike.${teamName}`)
-    .limit(1);
+  // Safe: use separate parameterized queries instead of string interpolation into .or()
+  const [{ data: byCaptain }, { data: byTeam }] = await Promise.all([
+    supabase
+      .from('captains')
+      .select('*')
+      .eq('season_id', seasonId)
+      .ilike('captain_name', captainName)
+      .limit(1),
+    supabase
+      .from('captains')
+      .select('*')
+      .eq('season_id', seasonId)
+      .ilike('team_name', teamName)
+      .limit(1),
+  ]);
 
-  return data?.[0] || null;
+  return byCaptain?.[0] || byTeam?.[0] || null;
 }
 
 export async function POST(request: Request) {
@@ -164,7 +174,9 @@ export async function POST(request: Request) {
 
   if (teamName.length < 2) return jsonError('Team name must be at least 2 characters.');
   if (captainName.length < 2) return jsonError('Captain name must be at least 2 characters.');
-  if (password.length < 4) return jsonError('Captain password must be at least 4 characters.');
+  if (!isStrongPassword(password, 8)) {
+    return jsonError(passwordPolicyMessage(8));
+  }
   if (!Number.isFinite(budget) || budget <= 0) return jsonError('Budget must be a positive number.');
   if (!Number.isFinite(maxPlayers) || maxPlayers < 1 || maxPlayers > 20) {
     return jsonError('Max players must be between 1 and 20.');

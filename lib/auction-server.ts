@@ -118,19 +118,28 @@ export async function getTeamForCaptain(supabase: SupabaseClient, captainId: str
 }
 
 export async function getBoughtCount(supabase: SupabaseClient, team: Team) {
-  let query = supabase
-    .from('players')
-    .select('id', { count: 'exact', head: true })
-    .eq('auction_status', 'SOLD')
-    .or(`sold_to_team_id.eq.${team.id},sold_to_team.eq.${team.team_name}`);
+  // Two parameterized queries merged by id, instead of a raw-string .or()
+  // filter built from team.team_name (free-text and admin-editable, so it
+  // could contain characters that break out of the filter syntax).
+  let byId = supabase.from('players').select('id').eq('auction_status', 'SOLD').eq('sold_to_team_id', team.id);
+  let byName = supabase.from('players').select('id').eq('auction_status', 'SOLD').eq('sold_to_team', team.team_name);
 
-  if (team.season_id) query = query.eq('season_id', team.season_id);
+  if (team.season_id) {
+    byId = byId.eq('season_id', team.season_id);
+    byName = byName.eq('season_id', team.season_id);
+  }
 
-  const { count, error } = await query;
+  const [idResult, nameResult] = await Promise.all([byId, byName]);
 
-  if (error) throw error;
+  if (idResult.error) throw idResult.error;
+  if (nameResult.error) throw nameResult.error;
 
-  return count || 0;
+  const ids = new Set<string>([
+    ...(idResult.data || []).map((row: { id: string }) => row.id),
+    ...(nameResult.data || []).map((row: { id: string }) => row.id),
+  ]);
+
+  return ids.size;
 }
 
 export async function validateAuctionStart(supabase: SupabaseClient) {

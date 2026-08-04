@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Gavel, Menu, Trophy, Users, WalletCards, X } from 'lucide-react';
 import { useAuctionRealtime } from '@/hooks/useAuctionRealtime';
 import { usePlayerSoldCelebration } from '@/hooks/usePlayerSoldCelebration';
@@ -11,20 +11,36 @@ import type { Bid, Captain, Player, Team } from '@/lib/types';
 import { formatMoney, initials } from '@/lib/format';
 import { toast } from '@/components/ui/AppToaster';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { ReconnectingBanner } from '@/components/ui/ReconnectingBanner';
+import { HighestBidderBadge } from '@/components/ui/HighestBidderBadge';
+import { BidFlash } from '@/components/ui/BidFlash';
+import { AutoScrollList } from '@/components/ui/AutoScrollList';
+import { playBidSound } from '@/lib/auction-ui';
 
 export function CaptainDashboardClient() {
   const { session } = useSession();
-  const { auction, currentPlayer, currentBid, bids, teams, players, events, loading, refresh } = useAuctionRealtime({ pollMs: 700 });
+  const { auction, currentPlayer, currentBid, bids, teams, players, events, loading, refresh, realtimeDisconnected } =
+    useAuctionRealtime({ pollMs: 900 });
 
   const [captain, setCaptain] = useState<Captain | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
   const [bought, setBought] = useState<Player[]>([]);
   const [busy, setBusy] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const prevBidRef = useRef<number | null>(null);
 
   const nextBid = useMemo(() => nextBidAmount(currentBid), [currentBid]);
   const alreadyHighest = auction?.highest_bidder_id === session?.id;
   const teamFull = bought.length >= (team?.max_players || 4);
+  const latestBidId = bids[0]?.id || '';
+
+  // Live bid animation + sound when bid changes from someone else
+  useEffect(() => {
+    if (prevBidRef.current !== null && currentBid > prevBidRef.current) {
+      playBidSound();
+    }
+    prevBidRef.current = currentBid;
+  }, [currentBid]);
 
   const cannotBidReason = (() => {
     if (!session || session.role !== 'captain') return 'Login as captain first.';
@@ -93,6 +109,7 @@ export function CaptainDashboardClient() {
 
     if (!res.ok) return toast(json.error || 'Bid failed');
 
+    playBidSound();
     toast(`Bid placed: ${formatMoney(json.bid_amount)}`);
     void refresh({ silent: true });
     void loadMine();
@@ -121,115 +138,143 @@ export function CaptainDashboardClient() {
 
   return (
     <>
+      <ReconnectingBanner visible={Boolean(realtimeDisconnected)} />
       <PlayerSoldCelebrationOverlay celebration={celebration} />
-      <main className="section-shell space-y-6 overflow-x-hidden">
-      <section className="glass-card p-4 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-4">
-            <Avatar src={team?.logo_url} label={captain?.team_name || session?.team_name || 'Team'} size="lg" />
 
-            <div className="min-w-0">
-              <p className="inline-flex rounded-full border border-apl-gold/25 bg-apl-gold/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-apl-gold">
-                Captain Auction Room
-              </p>
-              <h1 className="mt-3 break-words text-3xl font-black text-white sm:text-5xl">
-                {captain?.team_name || session?.team_name || 'Your Team'}
-              </h1>
-              <div className="mt-2 flex items-center gap-2 text-white/65">
-                <Avatar src={captain?.photo_url || team?.captain_photo_url} label={captain?.captain_name || session?.name || 'Captain'} size="xs" />
-                <span>Captain: {captain?.captain_name || session?.name || 'Captain'}</span>
+      {/* Sticky remaining budget — always visible */}
+      <div className="sticky top-[70px] z-40 border-b border-white/10 bg-apl-dark/95 px-4 py-2 backdrop-blur-xl sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <WalletCards className="h-4 w-4 text-apl-gold" />
+            <span className="text-xs font-bold uppercase tracking-wide text-white/50">Remaining budget</span>
+            <span className="text-lg font-black text-apl-gold">{formatMoney(team?.remaining_budget)}</span>
+            <span className="text-xs text-white/40">/ {formatMoney(team?.budget)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-white/45">
+              Squad {bought.length}/{team?.max_players || 4}
+            </span>
+            <HighestBidderBadge visible={Boolean(alreadyHighest)} teamName={team?.team_name} />
+          </div>
+        </div>
+      </div>
+
+      <main className="section-shell space-y-6 overflow-x-hidden pb-8">
+        <section className="glass-card p-4 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
+              <Avatar src={team?.logo_url} label={captain?.team_name || session?.team_name || 'Team'} size="lg" />
+
+              <div className="min-w-0">
+                <p className="inline-flex rounded-full border border-apl-gold/25 bg-apl-gold/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-apl-gold">
+                  Captain Auction Room
+                </p>
+                <h1 className="mt-3 break-words text-3xl font-black text-white sm:text-5xl">
+                  {captain?.team_name || session?.team_name || 'Your Team'}
+                </h1>
+                <div className="mt-2 flex items-center gap-2 text-white/65">
+                  <Avatar src={captain?.photo_url || team?.captain_photo_url} label={captain?.captain_name || session?.name || 'Captain'} size="xs" />
+                  <span>Captain: {captain?.captain_name || session?.name || 'Captain'}</span>
+                </div>
               </div>
             </div>
+
+            <button type="button" onClick={() => setSidebarOpen(true)} className="btn-ghost w-full justify-center sm:w-auto sm:shrink-0">
+              <Menu className="h-5 w-5" />
+              Team
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            className="btn-ghost w-full justify-center sm:w-auto sm:shrink-0"
-          >
-            <Menu className="h-5 w-5" />
-            Team
-          </button>
-        </div>
+          <div className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+            <Avatar src={highestTeam?.logo_url} label={auction?.highest_team_name || 'No bids'} size="sm" />
+            <p className="text-sm text-white/65">
+              Highest Bidder:{' '}
+              <span className="font-bold text-white">
+                {auction?.highest_team_name
+                  ? `${auction.highest_team_name} / ${auction.highest_bidder_captain_name || 'Captain'}`
+                  : 'No bids yet'}
+              </span>
+            </p>
+          </div>
+        </section>
 
-        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-3">
-          <Avatar src={highestTeam?.logo_url} label={auction?.highest_team_name || 'No bids'} size="sm" />
-          <p className="text-sm text-white/65">
-            Highest Bidder:{' '}
-            <span className="font-bold text-white">
-              {auction?.highest_team_name ? `${auction.highest_team_name} / ${auction.highest_bidder_captain_name || 'Captain'}` : 'No bids yet'}
-            </span>
-          </p>
-        </div>
-      </section>
+        <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
+          <div className="glass-card relative min-h-[420px] overflow-hidden p-5 sm:p-7">
+            <BidFlash triggerKey={latestBidId || currentBid} />
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
-        <div className="glass-card min-h-[420px] p-5 sm:p-7">
-          {!currentPlayer ? (
-            <div className="flex min-h-[360px] items-center justify-center text-center text-white/55">
-              No current player selected by admin.
-            </div>
-          ) : (
-            <div className="grid gap-5 md:grid-cols-[220px_1fr]">
-              <div className="aspect-square overflow-hidden rounded-[2rem] border border-white/10 bg-black/30">
-                {currentPlayer.photo_url ? (
-                  <img
-                    src={currentPlayer.photo_url}
-                    alt={currentPlayer.name}
-                    loading="eager"
-                    decoding="async"
-                    referrerPolicy="no-referrer"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="grid h-full place-items-center text-4xl font-black text-apl-gold">{initials(currentPlayer.name)}</div>
-                )}
+            {!currentPlayer ? (
+              <div className="flex min-h-[360px] items-center justify-center text-center text-white/55">
+                No current player selected by admin.
               </div>
-
-              <div>
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-apl-gold">Current Auction Player</p>
-                <h2 className="mt-2 text-4xl font-black text-white">{currentPlayer.name}</h2>
-                <p className="mt-2 text-white/60">
-                  {currentPlayer.role} • Batting: {currentPlayer.batting_style} • Bowling: {currentPlayer.bowling_style}
-                </p>
-
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  <Stat label="Current Bid" value={formatMoney(currentBid)} gold />
-                  <Stat label="Next Bid" value={formatMoney(nextBid)} />
-                  <Stat label="Your Budget" value={formatMoney(team?.remaining_budget)} />
-                  <Stat label="Your Players" value={`${bought.length}/${team?.max_players || 4}`} />
+            ) : (
+              <div className="grid gap-5 md:grid-cols-[180px_1fr] lg:grid-cols-[220px_1fr]">
+                <div className="mx-auto aspect-square w-full max-w-[220px] overflow-hidden rounded-[2rem] border border-white/10 bg-black/30">
+                  {currentPlayer.photo_url ? (
+                    <img
+                      src={currentPlayer.photo_url}
+                      alt={currentPlayer.name}
+                      loading="eager"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="grid h-full place-items-center text-4xl font-black text-apl-gold">{initials(currentPlayer.name)}</div>
+                  )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => void bid()}
-                  disabled={Boolean(cannotBidReason) || busy}
-                  className="btn-primary mt-6 w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Gavel className="h-5 w-5" />
-                  {busy ? 'Bidding...' : 'Bid'}
-                </button>
+                <div>
+                  <p className="text-sm font-black uppercase tracking-[0.2em] text-apl-gold">Current Auction Player</p>
+                  <h2 className="mt-2 text-3xl font-black text-white sm:text-4xl">{currentPlayer.name}</h2>
+                  <p className="mt-2 text-sm text-white/60 sm:text-base">
+                    {currentPlayer.role} • Batting: {currentPlayer.batting_style} • Bowling: {currentPlayer.bowling_style}
+                  </p>
 
-                {cannotBidReason && <p className="mt-3 text-center text-sm text-white/55">{cannotBidReason}</p>}
+                  <div className="mt-6 grid gap-3 grid-cols-2">
+                    <Stat label="Current Bid" value={formatMoney(currentBid)} gold />
+                    <Stat label="Next Bid" value={formatMoney(nextBid)} />
+                    <Stat label="Your Budget" value={formatMoney(team?.remaining_budget)} />
+                    <Stat label="Your Players" value={`${bought.length}/${team?.max_players || 4}`} />
+                  </div>
+
+                  {alreadyHighest && (
+                    <div className="mt-4">
+                      <HighestBidderBadge visible teamName={team?.team_name} />
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => void bid()}
+                    disabled={Boolean(cannotBidReason) || busy}
+                    className={`btn-primary mt-6 w-full justify-center transition ${busy ? 'opacity-70' : ''} disabled:cursor-not-allowed disabled:opacity-45 disabled:grayscale`}
+                  >
+                    <Gavel className="h-5 w-5" />
+                    {busy ? 'Bidding…' : cannotBidReason ? cannotBidReason : `Bid ${formatMoney(nextBid)}`}
+                  </button>
+
+                  {cannotBidReason && !busy && (
+                    <p className="mt-3 text-center text-sm text-white/55">{cannotBidReason}</p>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
 
-        <CaptainSidebarContent team={team} captain={captain} bought={bought} bids={bids} teams={teams} players={players} compact />
-      </section>
+          <CaptainSidebarContent team={team} captain={captain} bought={bought} bids={bids} teams={teams} players={players} compact />
+        </section>
 
-      <CaptainSidebarDrawer
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        team={team}
-        captain={captain}
-        bought={bought}
-        bids={bids}
-        teams={teams}
-        players={players}
-      />
-    </main>
+        <CaptainSidebarDrawer
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          team={team}
+          captain={captain}
+          bought={bought}
+          bids={bids}
+          teams={teams}
+          players={players}
+        />
+      </main>
     </>
   );
 }
@@ -289,6 +334,8 @@ function CaptainSidebarContent({
   players: Player[];
   compact?: boolean;
 }) {
+  const latestBidId = bids[0]?.id || '';
+
   return (
     <aside className={`${compact ? 'hidden xl:block' : ''} glass-card p-5`}>
       <div className="flex items-center gap-3">
@@ -371,7 +418,7 @@ function CaptainSidebarContent({
           <Gavel className="h-4 w-4 text-apl-gold" />
           Last 10 Bids
         </h3>
-        <div className="mt-3 space-y-2">
+        <AutoScrollList scrollKey={latestBidId} className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
           {bids.length === 0 && <p className="text-white/50">No bids yet.</p>}
           {bids.map((bid) => {
             const bidTeam = teams.find((item) => item.id === bid.team_id) || teams.find((item) => item.team_name === bid.team_name);
@@ -389,7 +436,7 @@ function CaptainSidebarContent({
               </div>
             );
           })}
-        </div>
+        </AutoScrollList>
       </section>
     </aside>
   );

@@ -1,8 +1,3 @@
 node_modules/
 .next/
-.agents/
-Frames.zip
-spline-3d-skill.zip
-.env
-.env.local
-.env*.local
+.claude/

@@ -4,21 +4,38 @@ import { useEffect, useRef, useState } from 'react';
 
 const TOTAL_FRAMES = 240;
 
-const getWebPFramePath = (index: number) => {
-  const paddedNum = String(index + 1).padStart(5, '0');
-  return `/frames/frame_${paddedNum}.webp`;
-};
+/** Backbone frames kept loaded at all times so fast scrubbing always has something nearby. */
+const KEYFRAME_STEP = 20;
+/** Frames kept decoded behind / ahead of the current scroll position. */
+const WINDOW_BEHIND = 8;
+const WINDOW_AHEAD = 18;
+/** Non-keyframe cache entries farther than this from the window center are released. */
+const EVICT_RADIUS = 28;
+/** Re-center the load window after the playhead moves this many frames. */
+const RECENTER_THRESHOLD = 4;
+/** Cap parallel image requests so we never flood the connection pool. */
+const MAX_CONCURRENT_LOADS = 6;
+/** Frame stride used on low-memory / small touch devices (cross-fade hides the gaps). */
+const LITE_STRIDE = 12;
 
-const getJpgFramePath = (index: number) => {
-  const paddedNum = String(index + 1).padStart(5, '0');
-  return `/frames/frame_${paddedNum}.jpg`;
-};
+type QualityMode = 'full' | 'lite' | 'static';
+
+const framePath = (index: number) => `/frames/frame_${String(index + 1).padStart(5, '0')}.webp`;
 
 export function HomepageScrollBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const vignetteRef = useRef<HTMLDivElement | null>(null);
-  const imagesRef = useRef<(HTMLImageElement | null)[]>(new Array(TOTAL_FRAMES).fill(null));
+
+  // Sliding-window frame cache — only a small band of decoded frames is alive at once.
+  const cacheRef = useRef<Map<number, HTMLImageElement>>(new Map());
+  const inFlightRef = useRef<Set<number>>(new Set());
+  const queueRef = useRef<number[]>([]);
+  const activeLoadsRef = useRef<number>(0);
+  const lastWindowCenterRef = useRef<number>(0);
+
+  const modeRef = useRef<QualityMode>('full');
+  const strideRef = useRef<number>(1);
 
   const targetFrameRef = useRef<number>(0);
   const currentFrameRef = useRef<number>(0);
@@ -33,44 +50,108 @@ export function HomepageScrollBackground() {
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Helper to load frame with WebP primary and JPG fallback
-  const loadFrameImage = (index: number): Promise<HTMLImageElement> => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.src = getWebPFramePath(index);
-      img.onload = () => resolve(img);
-      img.onerror = () => {
-        // Fallback to JPG if WebP fails
-        const fallbackImg = new Image();
-        fallbackImg.src = getJpgFramePath(index);
-        fallbackImg.onload = () => resolve(fallbackImg);
-        fallbackImg.onerror = () => resolve(img);
-      };
-    });
-  };
-
   // Helper to get loaded image or nearest available loaded frame
   const getLoadedImage = (frameIndex: number): HTMLImageElement | null => {
+    const cache = cacheRef.current;
     const idx = Math.max(0, Math.min(TOTAL_FRAMES - 1, frameIndex));
-    const img = imagesRef.current[idx];
-    if (img && img.complete && img.naturalWidth > 0) {
-      return img;
+
+    const exact = cache.get(idx);
+    if (exact && exact.complete && exact.naturalWidth > 0) {
+      return exact;
     }
 
-    // Fallback to nearest loaded frame
     for (let offset = 1; offset < TOTAL_FRAMES; offset++) {
-      const prev = idx - offset;
-      const next = idx + offset;
-      if (prev >= 0) {
-        const prevImg = imagesRef.current[prev];
-        if (prevImg && prevImg.complete && prevImg.naturalWidth > 0) return prevImg;
-      }
-      if (next < TOTAL_FRAMES) {
-        const nextImg = imagesRef.current[next];
-        if (nextImg && nextImg.complete && nextImg.naturalWidth > 0) return nextImg;
-      }
+      const prev = cache.get(idx - offset);
+      if (prev && prev.complete && prev.naturalWidth > 0) return prev;
+      const next = cache.get(idx + offset);
+      if (next && next.complete && next.naturalWidth > 0) return next;
     }
     return null;
+  };
+
+  const pumpQueue = () => {
+    const cache = cacheRef.current;
+    const inFlight = inFlightRef.current;
+
+    while (activeLoadsRef.current < MAX_CONCURRENT_LOADS && queueRef.current.length > 0) {
+      const index = queueRef.current.shift()!;
+      if (cache.has(index) || inFlight.has(index)) continue;
+
+      inFlight.add(index);
+      activeLoadsRef.current += 1;
+
+      const img = new Image();
+      img.decoding = 'async';
+
+      const finish = () => {
+        inFlight.delete(index);
+        activeLoadsRef.current = Math.max(0, activeLoadsRef.current - 1);
+        if (!isMountedRef.current) return;
+
+        if (img.complete && img.naturalWidth > 0) {
+          cache.set(index, img);
+
+          if (index === 0) {
+            setIsLoading(false);
+          }
+          // If a frame near the playhead just arrived, let the tick loop redraw with it.
+          if (Math.abs(index - currentFrameRef.current) <= strideRef.current) {
+            lastDrawnFloatFrameRef.current = -1;
+          }
+        }
+        pumpQueue();
+      };
+
+      img.onload = finish;
+      img.onerror = finish;
+      img.src = framePath(index);
+    }
+  };
+
+  // Rebuild the load queue around a frame index and evict frames far outside the window.
+  const requestWindow = (center: number) => {
+    const cache = cacheRef.current;
+    const inFlight = inFlightRef.current;
+    const mode = modeRef.current;
+    const wanted: number[] = [];
+
+    const push = (index: number) => {
+      if (index < 0 || index >= TOTAL_FRAMES) return;
+      if (cache.has(index) || inFlight.has(index) || wanted.includes(index)) return;
+      wanted.push(index);
+    };
+
+    if (mode === 'static') {
+      push(0);
+    } else if (mode === 'lite') {
+      // Low-memory devices: a sparse fixed set, loaded once, never evicted.
+      for (let i = 0; i < TOTAL_FRAMES; i += LITE_STRIDE) push(i);
+      push(TOTAL_FRAMES - 1);
+    } else {
+      const direction = targetFrameRef.current >= currentFrameRef.current ? 1 : -1;
+      const ahead = direction === 1 ? WINDOW_AHEAD : WINDOW_BEHIND;
+      const behind = direction === 1 ? WINDOW_BEHIND : WINDOW_AHEAD;
+
+      push(center);
+      for (let offset = 1; offset <= Math.max(ahead, behind); offset++) {
+        if (offset <= ahead) push(center + direction * offset);
+        if (offset <= behind) push(center - direction * offset);
+      }
+
+      // Keyframe backbone so fast jumps land near something loaded.
+      for (let i = 0; i < TOTAL_FRAMES; i += KEYFRAME_STEP) push(i);
+      push(TOTAL_FRAMES - 1);
+
+      for (const key of Array.from(cache.keys())) {
+        const isKeyframe = key % KEYFRAME_STEP === 0 || key === TOTAL_FRAMES - 1;
+        if (!isKeyframe && Math.abs(key - center) > EVICT_RADIUS) {
+          cache.delete(key);
+        }
+      }
+    }
+
+    queueRef.current = wanted;
+    pumpQueue();
   };
 
   // Draw sub-frame with sub-pixel cross-fading, camera depth zoom & velocity motion blur
@@ -80,10 +161,11 @@ export function HomepageScrollBackground() {
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
 
+    const stride = strideRef.current;
     const clampedFrame = Math.max(0, Math.min(TOTAL_FRAMES - 1, floatFrame));
-    const baseIndex = Math.floor(clampedFrame);
-    const nextIndex = Math.min(TOTAL_FRAMES - 1, Math.ceil(clampedFrame));
-    const blend = clampedFrame - baseIndex;
+    const baseIndex = Math.floor(clampedFrame / stride) * stride;
+    const nextIndex = Math.min(TOTAL_FRAMES - 1, baseIndex + stride);
+    const blend = nextIndex > baseIndex ? (clampedFrame - baseIndex) / (nextIndex - baseIndex) : 0;
 
     const baseImg = getLoadedImage(baseIndex);
     if (!baseImg) return;
@@ -157,52 +239,30 @@ export function HomepageScrollBackground() {
     lastDrawnFloatFrameRef.current = floatFrame;
   };
 
-  // Preload frames in priority stream (WebP with JPG fallback)
+  // Pick a quality mode for this device and start streaming the initial window.
   useEffect(() => {
     isMountedRef.current = true;
 
-    // Load first frame immediately for fast initial render
-    loadFrameImage(0).then((img) => {
-      if (!isMountedRef.current) return;
-      imagesRef.current[0] = img;
-      setIsLoading(false);
-      drawSubFrame(0);
-    });
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const smallTouchDevice = window.matchMedia('(pointer: coarse) and (max-width: 767px)').matches;
 
-    // Load initial priority buffer (frames 1..12)
-    const loadInitialBuffer = async () => {
-      const initialPromises = [];
-      for (let i = 1; i < Math.min(12, TOTAL_FRAMES); i++) {
-        initialPromises.push(
-          loadFrameImage(i).then((img) => {
-            if (isMountedRef.current) imagesRef.current[i] = img;
-          })
-        );
-      }
-      await Promise.all(initialPromises);
+    if (reducedMotion || (nav.deviceMemory !== undefined && nav.deviceMemory <= 2)) {
+      modeRef.current = 'static';
+    } else if ((nav.deviceMemory !== undefined && nav.deviceMemory <= 4) || smallTouchDevice) {
+      modeRef.current = 'lite';
+      strideRef.current = LITE_STRIDE;
+    }
 
-      // Stream remaining frames in fast chunks
-      const batchSize = 12;
-      for (let i = 12; i < TOTAL_FRAMES; i += batchSize) {
-        if (!isMountedRef.current) break;
-
-        const batchPromises = [];
-        for (let j = i; j < Math.min(i + batchSize, TOTAL_FRAMES); j++) {
-          batchPromises.push(
-            loadFrameImage(j).then((img) => {
-              if (isMountedRef.current) imagesRef.current[j] = img;
-            })
-          );
-        }
-        await Promise.all(batchPromises);
-      }
-    };
-
-    loadInitialBuffer();
+    requestWindow(0);
 
     return () => {
       isMountedRef.current = false;
+      queueRef.current = [];
+      cacheRef.current.clear();
+      inFlightRef.current.clear();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Scroll listener, velocity calculation, endpoint mapping & Battery Saver Visibility
@@ -231,7 +291,7 @@ export function HomepageScrollBackground() {
       lastScrollYRef.current = currentScrollY;
 
       const progress = Math.max(0, Math.min(1, currentScrollY / endScrollY));
-      targetFrameRef.current = progress * (TOTAL_FRAMES - 1);
+      targetFrameRef.current = modeRef.current === 'static' ? 0 : progress * (TOTAL_FRAMES - 1);
 
       // Adaptive Vignette Readability Mapping (modulates dark overlay contrast)
       if (vignetteRef.current) {
@@ -291,6 +351,15 @@ export function HomepageScrollBackground() {
           currentFrameRef.current = target;
         }
 
+        // Keep the streaming window centered on the playhead
+        if (modeRef.current === 'full') {
+          const center = Math.round(currentFrameRef.current);
+          if (Math.abs(center - lastWindowCenterRef.current) >= RECENTER_THRESHOLD) {
+            lastWindowCenterRef.current = center;
+            requestWindow(center);
+          }
+        }
+
         // Decay scroll velocity smoothly
         scrollVelocityRef.current *= 0.85;
 
@@ -312,6 +381,7 @@ export function HomepageScrollBackground() {
         cancelAnimationFrame(animFrameIdRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -335,5 +405,3 @@ export function HomepageScrollBackground() {
     </div>
   );
 }
-
-

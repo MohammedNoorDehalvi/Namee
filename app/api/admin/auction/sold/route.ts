@@ -89,6 +89,10 @@ export async function POST(request: Request) {
   // Always stamp season_id + team_id so archives resolve with season_id + sold_to_team_id
   const seasonId = auction.season_id || team.season_id || player.season_id || null;
 
+  if (!seasonId) {
+    return jsonError('Cannot sell: no season_id on auction/team/player. Start an active season first.');
+  }
+
   await supabase
     .from('players')
     .update({

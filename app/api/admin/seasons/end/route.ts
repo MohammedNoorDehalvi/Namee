@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { createAuctionEvent, requireAdminRequest } from '@/lib/auction-server';
-import { getActiveSeason } from '@/lib/season-server';
+import { freezeSeasonAuctionResults, getActiveSeason } from '@/lib/season-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,6 +13,11 @@ const NO_STORE_HEADERS = {
   Expires: '0',
 };
 
+/**
+ * End the active season and FREEZE sold/unsold results so they stay in the
+ * players table forever for archive (season_id + sold_to_team_id + price).
+ * Never clears sold data when starting the next season later.
+ */
 export async function POST(request: Request) {
   const { response, supabase } = requireAdminRequest(request);
 
@@ -26,6 +31,18 @@ export async function POST(request: Request) {
 
   const now = new Date().toISOString();
 
+  // 1) Freeze sold / unsold for THIS season before marking ended
+  try {
+    await freezeSeasonAuctionResults(supabase, season.id);
+  } catch (e) {
+    console.error('[seasons/end] freeze failed', e);
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Could not freeze season results.' },
+      { status: 500, headers: NO_STORE_HEADERS },
+    );
+  }
+
+  // 2) Mark season ended (read-only archive)
   const { error } = await supabase
     .from('seasons')
     .update({ status: 'ended', ended_at: now })
@@ -35,6 +52,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500, headers: NO_STORE_HEADERS });
   }
 
+  // 3) Clear live auction board only (single row) — does NOT touch players sold fields
   await supabase
     .from('auction')
     .update({
@@ -56,11 +74,11 @@ export async function POST(request: Request) {
   await createAuctionEvent(supabase, {
     season_id: season.id,
     event_type: 'SEASON',
-    message: `${season.name} ended. Old data is saved read-only.`,
+    message: `${season.name} ended. Sold/unsold results frozen for archive.`,
   }).catch(() => undefined);
 
   return NextResponse.json(
-    { ok: true, alreadyEnded: false, season: { ...season, status: 'ended', ended_at: now } },
+    { ok: true, alreadyEnded: false, season: { ...season, status: 'ended', ended_at: now }, frozen: true },
     { headers: NO_STORE_HEADERS },
   );
 }

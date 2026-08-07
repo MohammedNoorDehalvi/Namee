@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAuctionEvent, jsonError, requireAdminRequest, saveAdminHistory } from '@/lib/auction-server';
+import { assertPlayerSeasonMutable } from '@/lib/season-server';
 import type { Player, Team } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -14,6 +15,13 @@ export async function POST(request: Request) {
   const { data: player } = await supabase.from('players').select('*').eq('id', player_id).maybeSingle();
   if (!player) return jsonError('Player not found.', 404);
   const safePlayer = player as Player;
+
+  try {
+    await assertPlayerSeasonMutable(supabase, safePlayer.season_id);
+  } catch (e) {
+    return jsonError(e instanceof Error ? e.message : 'Player is read-only.', 403);
+  }
+
   const { data: team } = safePlayer.sold_to_team_id
     ? await supabase.from('teams').select('*').eq('id', safePlayer.sold_to_team_id).maybeSingle()
     : await supabase.from('teams').select('*').eq('team_name', safePlayer.sold_to_team || '').maybeSingle();
@@ -29,16 +37,26 @@ export async function POST(request: Request) {
     ]);
   }
 
-  await supabase.from('players').update({
-    status: 'Available',
-    auction_status: 'PENDING',
-    sold_to_team: null,
-    sold_to_team_id: null,
-    sold_to_captain_id: null,
-    sold_price: null,
-    current_bid: 0,
-    assigned_by_admin: false,
-  }).eq('id', safePlayer.id);
+  let clearQuery = supabase
+    .from('players')
+    .update({
+      status: 'Available',
+      auction_status: 'PENDING',
+      sold_to_team: null,
+      sold_to_team_id: null,
+      sold_to_captain_id: null,
+      sold_price: null,
+      current_bid: 0,
+      assigned_by_admin: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', safePlayer.id);
+
+  if (safePlayer.season_id) {
+    clearQuery = clearQuery.eq('season_id', safePlayer.season_id);
+  }
+
+  await clearQuery;
 
   await createAuctionEvent(supabase, { event_type: 'STATUS', message: `Admin removed ${safePlayer.name} from team and returned player to auction pool.`, player_id: safePlayer.id });
   return NextResponse.json({ ok: true });

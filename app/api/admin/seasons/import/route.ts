@@ -225,9 +225,17 @@ async function copyApprovedPlayers(supabase: any, oldPlayers: AnyRow[], selected
 
     if (existing?.id) continue;
 
+    // Insert a NEW pool row for the active season only.
+    // Never UPDATE old-season rows — that would wipe Sold archives for APL 5/6/7.
     const payload: AnyRow = {
-      ...stripSystemFields(row),
       name: playerName,
+      phone: row.phone || null,
+      normalized_phone: row.normalized_phone || null,
+      role: row.role || 'Batter',
+      batting_style: row.batting_style || 'Right Hand',
+      bowling_style: row.bowling_style || 'None',
+      base_price: Number(row.base_price || 100),
+      photo_url: row.photo_url || null,
       season_id: activeSeasonId,
       approval_status: 'Approved',
       status: 'Available',

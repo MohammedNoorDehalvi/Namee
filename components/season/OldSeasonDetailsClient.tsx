@@ -5,6 +5,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BarChart3, Gavel, Trophy, Users } from 'lucide-react';
 import type { AuctionEvent, Bid, Captain, MatchRow, Player, PointRow, Season, Team } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
+import { PageShell } from '@/components/ui/PageShell';
+import { CardSkeleton } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 type Details = {
   season: Season;
@@ -15,33 +18,76 @@ type Details = {
   events: AuctionEvent[];
   matches: MatchRow[];
   pointsTable: PointRow[];
+  meta?: {
+    playerCount?: number;
+    soldCount?: number;
+    recoveredSoldCount?: number;
+  };
 };
+
+function isSoldPlayer(player: Player) {
+  const statusUpper = (player.status || '').toUpperCase();
+  const auctionStatusUpper = (player.auction_status || '').toUpperCase();
+  const hasTeam = Boolean(player.sold_to_team_id || player.sold_to_team || player.sold_to_captain_id);
+  const hasPrice = Number(player.sold_price || 0) > 0;
+  return auctionStatusUpper === 'SOLD' || statusUpper === 'SOLD' || hasTeam || hasPrice;
+}
+
+function playerBelongsToTeam(player: Player, team: Team) {
+  if (player.sold_to_team_id && player.sold_to_team_id === team.id) return true;
+  if (player.sold_to_captain_id && team.captain_id && player.sold_to_captain_id === team.captain_id) return true;
+  if (
+    player.sold_to_team &&
+    team.team_name &&
+    player.sold_to_team.trim().toLowerCase() === team.team_name.trim().toLowerCase()
+  ) {
+    return true;
+  }
+  return false;
+}
 
 export function OldSeasonDetailsClient({ seasonId }: { seasonId: string }) {
   const [data, setData] = useState<Details | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
+    let alive = true;
+
     async function load() {
-      const res = await fetch(`/api/seasons/${seasonId}`, { cache: 'no-store' });
-      const json = await res.json().catch(() => null);
-      setData(json);
-      setLoading(false);
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch(`/api/seasons/${seasonId}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        });
+        const json = await res.json().catch(() => null);
+        if (!alive) return;
+        if (!res.ok) {
+          setError(json?.error || 'Could not load season.');
+          setData(null);
+          return;
+        }
+        setData(json);
+      } catch {
+        if (!alive) return;
+        setError('Network error loading season.');
+        setData(null);
+      } finally {
+        if (alive) setLoading(false);
+      }
     }
 
     void load();
+    return () => {
+      alive = false;
+    };
   }, [seasonId]);
 
   const soldPlayers = useMemo(() => {
     if (!data?.players) return [];
-    return data.players.filter((player) => {
-      const statusUpper = player.status?.toUpperCase();
-      const auctionStatusUpper = player.auction_status?.toUpperCase();
-      const hasTeam = Boolean(player.sold_to_team_id || player.sold_to_team || player.sold_to_captain_id);
-      const hasPrice = Number(player.sold_price || 0) > 0;
-
-      return auctionStatusUpper === 'SOLD' || statusUpper === 'SOLD' || hasTeam || hasPrice;
-    });
+    return data.players.filter(isSoldPlayer);
   }, [data]);
 
   const unsoldPlayers = useMemo(() => {
@@ -49,28 +95,59 @@ export function OldSeasonDetailsClient({ seasonId }: { seasonId: string }) {
     const soldSet = new Set(soldPlayers.map((p) => p.id));
     return data.players.filter((player) => {
       if (soldSet.has(player.id)) return false;
-      const statusUpper = player.status?.toUpperCase();
-      const auctionStatusUpper = player.auction_status?.toUpperCase();
-
+      const statusUpper = (player.status || '').toUpperCase();
+      const auctionStatusUpper = (player.auction_status || '').toUpperCase();
       return auctionStatusUpper === 'UNSOLD' || statusUpper === 'UNSOLD';
     });
   }, [data, soldPlayers]);
 
-  const mostExpensive = useMemo(() => [...soldPlayers].sort((a, b) => Number(b.sold_price || 0) - Number(a.sold_price || 0))[0] || null, [soldPlayers]);
+  const mostExpensive = useMemo(
+    () => [...soldPlayers].sort((a, b) => Number(b.sold_price || 0) - Number(a.sold_price || 0))[0] || null,
+    [soldPlayers],
+  );
 
-  if (loading) return <p className="py-20 text-center text-white/60">Loading old season...</p>;
-  if (!data?.season) return <p className="py-20 text-center text-white/60">Season not found.</p>;
+  const totalSpent = useMemo(
+    () => soldPlayers.reduce((sum, p) => sum + Number(p.sold_price || 0), 0),
+    [soldPlayers],
+  );
+
+  if (loading) {
+    return (
+      <PageShell className="py-8 space-y-6">
+        <CardSkeleton />
+        <div className="grid gap-4 md:grid-cols-2">
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
+      </PageShell>
+    );
+  }
+
+  if (error || !data?.season) {
+    return (
+      <PageShell className="py-12">
+        <EmptyState
+          title={error || 'Season not found'}
+          description="Check the season link or return to the archive list."
+          actionHref="/seasons"
+          actionLabel="Back to seasons"
+        />
+      </PageShell>
+    );
+  }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12">
-      <Link href="/seasons" className="mb-6 inline-flex items-center gap-2 text-sm font-black text-yellow-300">
+    <PageShell className="py-8">
+      <Link href="/seasons" className="mb-6 inline-flex items-center gap-2 text-sm font-black text-amber-300 hover:underline">
         <ArrowLeft size={16} /> Back to old seasons
       </Link>
 
       <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-7 shadow-2xl backdrop-blur">
-        <p className="text-sm font-black uppercase tracking-[0.25em] text-yellow-300">Read-only archive</p>
-        <h1 className="mt-3 text-5xl font-black text-white">{data.season.name}</h1>
-        <p className="mt-3 text-white/60">Teams, captains, players, sold/unsold results, bids, points table and match results if available.</p>
+        <p className="text-sm font-black uppercase tracking-[0.25em] text-amber-300">Read-only archive</p>
+        <h1 className="mt-3 text-4xl font-black text-white font-display sm:text-5xl">{data.season.name}</h1>
+        <p className="mt-3 text-slate-300">
+          Teams, captains, sold/unsold results, and bids saved for this season.
+        </p>
 
         <div className="mt-7 grid grid-cols-2 gap-4 md:grid-cols-4">
           <Mini label="Teams" value={data.teams.length} icon={<Users />} />
@@ -78,75 +155,148 @@ export function OldSeasonDetailsClient({ seasonId }: { seasonId: string }) {
           <Mini label="Sold" value={soldPlayers.length} icon={<Gavel />} />
           <Mini label="Unsold" value={unsoldPlayers.length} icon={<BarChart3 />} />
         </div>
+
+        {data.meta?.recoveredSoldCount ? (
+          <p className="mt-4 text-xs text-slate-400">
+            Includes {data.meta.recoveredSoldCount} sold row(s) recovered via team / captain links (legacy season_id).
+          </p>
+        ) : null}
       </section>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6">
-          <h2 className="text-2xl font-black text-white">Teams & Captains</h2>
-          <div className="mt-5 grid gap-4">
-            {data.teams.map((team) => {
-              const teamPlayers = soldPlayers.filter((player) => {
-                if (player.sold_to_team_id && player.sold_to_team_id === team.id) return true;
-                if (player.sold_to_captain_id && team.captain_id && player.sold_to_captain_id === team.captain_id) return true;
-                if (player.sold_to_team && team.team_name && player.sold_to_team.trim().toLowerCase() === team.team_name.trim().toLowerCase()) return true;
-                return false;
-              });
-              return (
-                <div key={team.id} className="rounded-3xl border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-center gap-3">
-                    {team.logo_url ? <img src={team.logo_url} alt={team.team_name} className="h-14 w-14 rounded-2xl object-cover" /> : null}
-                    <div>
-                      <h3 className="text-xl font-black text-white">{team.team_name}</h3>
-                      <p className="text-sm text-white/55">Captain: {team.captain_name}</p>
+          <h2 className="text-2xl font-black text-white font-display">Teams &amp; captains</h2>
+          {data.teams.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-400">No teams saved for this season.</p>
+          ) : (
+            <div className="mt-5 grid gap-4">
+              {data.teams.map((team) => {
+                const teamPlayers = soldPlayers
+                  .filter((player) => playerBelongsToTeam(player, team))
+                  .sort((a, b) => Number(b.sold_price || 0) - Number(a.sold_price || 0));
+                const spent = teamPlayers.reduce((sum, p) => sum + Number(p.sold_price || 0), 0);
+
+                return (
+                  <div key={team.id} className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-center gap-3">
+                      {team.logo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={team.logo_url} alt={team.team_name} className="h-14 w-14 rounded-2xl object-cover" />
+                      ) : (
+                        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-amber-400/15 text-sm font-black text-amber-300">
+                          {team.team_name.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <h3 className="truncate text-xl font-black text-white">{team.team_name}</h3>
+                        <p className="text-sm text-slate-400">Captain: {team.captain_name}</p>
+                        <p className="text-xs text-amber-300/90">
+                          {teamPlayers.length} sold · spent {formatMoney(spent)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-2">
+                      {teamPlayers.length === 0 ? (
+                        <p className="text-sm text-slate-500">No sold players linked to this franchise.</p>
+                      ) : (
+                        teamPlayers.map((player) => (
+                          <div
+                            key={player.id}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-white/[0.04] px-3 py-2.5 text-sm text-slate-200"
+                          >
+                            <span>
+                              <span className="font-semibold text-white">{player.name}</span>
+                              <span className="text-slate-500"> · {player.role}</span>
+                            </span>
+                            <span className="font-bold text-amber-300">{formatMoney(player.sold_price)}</span>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
-                  <div className="mt-4 grid gap-2">
-                    {teamPlayers.length === 0 ? (
-                      <p className="text-sm text-white/50">No sold players saved.</p>
-                    ) : (
-                      teamPlayers.map((player) => (
-                        <p key={player.id} className="rounded-2xl bg-white/[0.04] p-3 text-sm text-white/75">
-                          {player.name} • {player.role} • {formatMoney(player.sold_price)}
-                        </p>
-                      ))
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         <aside className="space-y-6">
           <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6">
-            <h2 className="text-2xl font-black text-white">Auction Results</h2>
-            <p className="mt-3 text-white/60">Most expensive: {mostExpensive ? `${mostExpensive.name} (${formatMoney(mostExpensive.sold_price)})` : 'Not available yet'}</p>
-            <p className="mt-2 text-white/60">Total bids: {data.bids.length}</p>
+            <h2 className="text-2xl font-black text-white font-display">Auction results</h2>
+            <p className="mt-3 text-slate-300">
+              Most expensive:{' '}
+              {mostExpensive ? (
+                <strong className="text-white">
+                  {mostExpensive.name} ({formatMoney(mostExpensive.sold_price)})
+                </strong>
+              ) : (
+                'Not available'
+              )}
+            </p>
+            <p className="mt-2 text-slate-300">
+              Total spent: <strong className="text-amber-300">{formatMoney(totalSpent)}</strong>
+            </p>
+            <p className="mt-2 text-slate-300">Total bids logged: {data.bids.length}</p>
+            <p className="mt-2 text-slate-300">Sold players: {soldPlayers.length}</p>
           </section>
 
           <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6">
-            <h2 className="text-2xl font-black text-white">Unsold Players</h2>
-            <div className="mt-3 grid gap-2">
-              {unsoldPlayers.length === 0 ? <p className="text-white/50">No unsold players.</p> : unsoldPlayers.map((player) => <p key={player.id} className="rounded-2xl bg-black/20 p-3 text-sm text-white/75">{player.name}</p>)}
+            <h2 className="text-2xl font-black text-white font-display">All sold players</h2>
+            <div className="mt-3 grid max-h-80 gap-2 overflow-y-auto pr-1">
+              {soldPlayers.length === 0 ? (
+                <p className="text-slate-500">
+                  No sold players found for this season. If sales happened, player rows may lack this season&apos;s team
+                  links.
+                </p>
+              ) : (
+                [...soldPlayers]
+                  .sort((a, b) => Number(b.sold_price || 0) - Number(a.sold_price || 0))
+                  .map((player) => (
+                    <p key={player.id} className="rounded-2xl bg-black/20 px-3 py-2 text-sm text-slate-200">
+                      <span className="font-semibold text-white">{player.name}</span>
+                      <span className="text-slate-500"> → {player.sold_to_team || 'Team'}</span>
+                      <span className="float-right font-bold text-amber-300">{formatMoney(player.sold_price)}</span>
+                    </p>
+                  ))
+              )}
             </div>
           </section>
 
           <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6">
-            <h2 className="text-2xl font-black text-white">Matches / Points</h2>
-            <p className="mt-3 text-white/60">{data.matches.length ? `${data.matches.length} matches saved.` : 'Match results not available yet.'}</p>
-            <p className="mt-2 text-white/60">{data.pointsTable.length ? `${data.pointsTable.length} points rows saved.` : 'Points table not available yet.'}</p>
+            <h2 className="text-2xl font-black text-white font-display">Unsold players</h2>
+            <div className="mt-3 grid gap-2">
+              {unsoldPlayers.length === 0 ? (
+                <p className="text-slate-500">No unsold players.</p>
+              ) : (
+                unsoldPlayers.map((player) => (
+                  <p key={player.id} className="rounded-2xl bg-black/20 p-3 text-sm text-slate-200">
+                    {player.name}
+                  </p>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6">
+            <h2 className="text-2xl font-black text-white font-display">Matches / points</h2>
+            <p className="mt-3 text-slate-300">
+              {data.matches.length ? `${data.matches.length} matches saved.` : 'Match results not available yet.'}
+            </p>
+            <p className="mt-2 text-slate-300">
+              {data.pointsTable.length ? `${data.pointsTable.length} points rows saved.` : 'Points table not available yet.'}
+            </p>
           </section>
         </aside>
       </div>
-    </div>
+    </PageShell>
   );
 }
 
 function Mini({ label, value, icon }: { label: string; value: React.ReactNode; icon: React.ReactNode }) {
   return (
     <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
-      <div className="text-yellow-300">{icon}</div>
-      <p className="mt-3 text-sm text-white/45">{label}</p>
+      <div className="text-amber-300">{icon}</div>
+      <p className="mt-3 text-sm text-slate-400">{label}</p>
       <p className="text-3xl font-black text-white">{value}</p>
     </div>
   );

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAuctionEvent, getAuction, jsonError, requireAdminRequest, saveAdminHistory, validateAuctionStart } from '@/lib/auction-server';
+import { getActiveSeason } from '@/lib/season-server';
 
 export const runtime = 'nodejs';
 
@@ -11,6 +12,8 @@ export async function POST(request: Request) {
 
   const { action } = await request.json().catch(() => ({ action: '' })) as { action: Action };
   const auction = await getAuction(supabase);
+  const activeSeason = await getActiveSeason(supabase).catch(() => null);
+  const seasonId = activeSeason?.id || auction?.season_id || null;
 
   if (action === 'start') {
     const warning = await validateAuctionStart(supabase);
@@ -45,15 +48,61 @@ export async function POST(request: Request) {
 
   if (action === 'reset') {
     await saveAdminHistory(supabase, { action_type: 'reset_auction', auction, message: 'Auction reset.' });
-    await supabase.from('bids').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('auction_events').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('players').update({ status: 'Available', auction_status: 'PENDING', current_bid: 0, sold_to_team: null, sold_to_team_id: null, sold_to_captain_id: null, sold_price: null, assigned_by_admin: false }).eq('approval_status', 'Approved');
-    const { data: captains } = await supabase.from('captains').select('id,budget');
-    await Promise.all((captains || []).map((captain) => supabase.from('captains').update({ remaining_budget: captain.budget }).eq('id', captain.id)));
-    const { data: teams } = await supabase.from('teams').select('id,budget');
-    await Promise.all((teams || []).map((team) => supabase.from('teams').update({ remaining_budget: team.budget }).eq('id', team.id)));
-    await supabase.from('auction').update({ auction_status: 'NOT_STARTED', current_player_id: null, highest_bid: 0, highest_bidder_id: null, highest_bidder_team_id: null, highest_bidder_captain_name: null, highest_team_name: null, manual_picker_hidden: false, started_at: null, ended_at: null, updated_at: new Date().toISOString() }).eq('id', 1);
-    await createAuctionEvent(supabase, { event_type: 'RESET', message: 'Auction reset by admin.' });
+
+    // Scope wipe to the active season only — never erase past-season archives.
+    if (seasonId) {
+      await supabase.from('bids').delete().eq('season_id', seasonId);
+      await supabase.from('auction_events').delete().eq('season_id', seasonId);
+      await supabase
+        .from('players')
+        .update({
+          status: 'Available',
+          auction_status: 'PENDING',
+          current_bid: 0,
+          sold_to_team: null,
+          sold_to_team_id: null,
+          sold_to_captain_id: null,
+          sold_price: null,
+          assigned_by_admin: false,
+        })
+        .eq('approval_status', 'Approved')
+        .eq('season_id', seasonId);
+
+      const { data: captains } = await supabase.from('captains').select('id,budget').eq('season_id', seasonId);
+      await Promise.all(
+        (captains || []).map((captain) =>
+          supabase.from('captains').update({ remaining_budget: captain.budget }).eq('id', captain.id),
+        ),
+      );
+      const { data: teams } = await supabase.from('teams').select('id,budget').eq('season_id', seasonId);
+      await Promise.all(
+        (teams || []).map((team) =>
+          supabase.from('teams').update({ remaining_budget: team.budget }).eq('id', team.id),
+        ),
+      );
+    }
+
+    await supabase
+      .from('auction')
+      .update({
+        auction_status: 'NOT_STARTED',
+        current_player_id: null,
+        highest_bid: 0,
+        highest_bidder_id: null,
+        highest_bidder_team_id: null,
+        highest_bidder_captain_name: null,
+        highest_team_name: null,
+        manual_picker_hidden: false,
+        started_at: null,
+        ended_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', 1);
+    await createAuctionEvent(supabase, {
+      season_id: seasonId,
+      event_type: 'RESET',
+      message: seasonId ? 'Auction reset for active season only.' : 'Auction reset by admin.',
+    });
     return NextResponse.json({ ok: true });
   }
 

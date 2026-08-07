@@ -29,6 +29,7 @@ export async function POST(request: Request) {
   await saveAdminHistory(supabase, { action_type: 'manual_assign', player: safePlayer, team: safeTeam, message: `Admin assigned ${safePlayer.name} to ${safeTeam.team_name}.` });
 
   const remaining = Math.max(0, Number(safeTeam.remaining_budget || 0) - assignPrice);
+  const seasonId = safeTeam.season_id || safePlayer.season_id || null;
   await supabase.from('players').update({
     status: 'Sold',
     auction_status: 'SOLD',
@@ -37,7 +38,9 @@ export async function POST(request: Request) {
     sold_to_captain_id: safeTeam.captain_id,
     sold_price: assignPrice,
     current_bid: assignPrice,
+    season_id: seasonId,
     assigned_by_admin: true,
+    updated_at: new Date().toISOString(),
   }).eq('id', safePlayer.id);
 
   await Promise.all([

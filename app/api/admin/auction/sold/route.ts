@@ -86,6 +86,9 @@ export async function POST(request: Request) {
 
   const remaining = Number(team.remaining_budget) - soldPrice;
 
+  // Always stamp season_id + team_id so archives resolve with season_id + sold_to_team_id
+  const seasonId = auction.season_id || team.season_id || player.season_id || null;
+
   await supabase
     .from('players')
     .update({
@@ -96,6 +99,7 @@ export async function POST(request: Request) {
       sold_to_captain_id: auction.highest_bidder_id,
       sold_price: soldPrice,
       current_bid: soldPrice,
+      season_id: seasonId,
       updated_at: new Date().toISOString(),
     })
     .eq('id', player.id);
@@ -122,7 +126,7 @@ export async function POST(request: Request) {
     .eq('id', 1);
 
   await createAuctionEvent(supabase, {
-    season_id: auction.season_id || player.season_id || null,
+    season_id: seasonId,
     event_type: 'SOLD',
     message: `${player.name} sold to ${team.team_name} for ${soldPrice} points.`,
     player_id: player.id,
@@ -134,7 +138,7 @@ export async function POST(request: Request) {
   const newCount = boughtCount + 1;
   if (newCount >= (team.max_players || 4)) {
     await createAuctionEvent(supabase, {
-      season_id: auction.season_id || player.season_id || null,
+      season_id: seasonId,
       event_type: 'TEAM_FULL',
       message: `Team ${team.team_name} is full with ${newCount} players.`,
       team_id: team.id,

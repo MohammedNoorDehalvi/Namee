@@ -21,26 +21,21 @@ type Details = {
   teams: Team[];
   captains: Captain[];
   players: Player[];
-  soldPlayers?: Player[];
-  squads?: Squad[];
+  soldPlayers: Player[];
+  unsoldPlayers?: Player[];
+  squads: Squad[];
   bids: Bid[];
   events: AuctionEvent[];
   matches: MatchRow[];
   pointsTable: PointRow[];
   meta?: {
+    seasonId?: string;
     soldCount?: number;
-    soldViaTeamId?: number;
-    soldViaSeasonId?: number;
+    playerCount?: number;
+    statusBreakdown?: Record<string, number>;
+    query?: Record<string, string>;
   };
 };
-
-function isSoldPlayer(player: Player) {
-  const statusUpper = (player.status || '').toUpperCase();
-  const auctionStatusUpper = (player.auction_status || '').toUpperCase();
-  const hasTeam = Boolean(player.sold_to_team_id || player.sold_to_team || player.sold_to_captain_id);
-  const hasPrice = Number(player.sold_price || 0) > 0;
-  return auctionStatusUpper === 'SOLD' || statusUpper === 'SOLD' || hasTeam || hasPrice;
-}
 
 export function OldSeasonDetailsClient({ seasonId }: { seasonId: string }) {
   const [data, setData] = useState<Details | null>(null);
@@ -54,7 +49,7 @@ export function OldSeasonDetailsClient({ seasonId }: { seasonId: string }) {
       setLoading(true);
       setError('');
       try {
-        const res = await fetch(`/api/seasons/${seasonId}`, {
+        const res = await fetch(`/api/seasons/${encodeURIComponent(seasonId)}`, {
           cache: 'no-store',
           headers: { 'Cache-Control': 'no-cache' },
         });
@@ -65,11 +60,12 @@ export function OldSeasonDetailsClient({ seasonId }: { seasonId: string }) {
           setData(null);
           return;
         }
-        setData(json);
+        setData(json as Details);
       } catch {
-        if (!alive) return;
-        setError('Network error loading season.');
-        setData(null);
+        if (alive) {
+          setError('Network error loading season.');
+          setData(null);
+        }
       } finally {
         if (alive) setLoading(false);
       }
@@ -81,45 +77,9 @@ export function OldSeasonDetailsClient({ seasonId }: { seasonId: string }) {
     };
   }, [seasonId]);
 
-  const soldPlayers = useMemo(() => {
-    if (data?.soldPlayers?.length) return data.soldPlayers;
-    if (!data?.players) return [];
-    return data.players.filter(isSoldPlayer);
-  }, [data]);
-
-  const squads = useMemo(() => {
-    if (data?.squads?.length) return data.squads;
-    if (!data?.teams) return [];
-    return data.teams.map((team) => {
-      const sold = soldPlayers
-        .filter(
-          (p) =>
-            (p.sold_to_team_id && p.sold_to_team_id === team.id) ||
-            (p.sold_to_team &&
-              team.team_name &&
-              p.sold_to_team.trim().toLowerCase() === team.team_name.trim().toLowerCase()) ||
-            (p.sold_to_captain_id && team.captain_id && p.sold_to_captain_id === team.captain_id),
-        )
-        .sort((a, b) => Number(b.sold_price || 0) - Number(a.sold_price || 0));
-      return {
-        team,
-        soldPlayers: sold,
-        soldCount: sold.length,
-        spent: sold.reduce((s, p) => s + Number(p.sold_price || 0), 0),
-      };
-    });
-  }, [data, soldPlayers]);
-
-  const unsoldPlayers = useMemo(() => {
-    if (!data?.players) return [];
-    const soldIds = new Set(soldPlayers.map((p) => p.id));
-    return data.players.filter((player) => {
-      if (soldIds.has(player.id)) return false;
-      const statusUpper = (player.status || '').toUpperCase();
-      const auctionStatusUpper = (player.auction_status || '').toUpperCase();
-      return auctionStatusUpper === 'UNSOLD' || statusUpper === 'UNSOLD';
-    });
-  }, [data, soldPlayers]);
+  const soldPlayers = data?.soldPlayers || [];
+  const squads = data?.squads || [];
+  const unsoldPlayers = data?.unsoldPlayers || [];
 
   const mostExpensive = useMemo(
     () => [...soldPlayers].sort((a, b) => Number(b.sold_price || 0) - Number(a.sold_price || 0))[0] || null,
@@ -165,9 +125,10 @@ export function OldSeasonDetailsClient({ seasonId }: { seasonId: string }) {
       <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-7 shadow-2xl backdrop-blur">
         <p className="text-sm font-black uppercase tracking-[0.25em] text-amber-300">Read-only archive</p>
         <h1 className="mt-3 text-4xl font-black text-white font-display sm:text-5xl">{data.season.name}</h1>
+        <p className="mt-2 text-xs text-slate-400 font-mono">season_id: {data.meta?.seasonId || data.season.id}</p>
         <p className="mt-3 text-slate-300">
-          Loaded by season → teams → sold players (<code className="text-amber-200/90">season_id</code> +{' '}
-          <code className="text-amber-200/90">sold_to_team_id</code>) and price.
+          Fetch: <span className="text-white">players.season_id = this season</span> → filter Sold → group by{' '}
+          <span className="text-white">sold_to_team_id</span>.
         </p>
 
         <div className="mt-7 grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -178,11 +139,26 @@ export function OldSeasonDetailsClient({ seasonId }: { seasonId: string }) {
         </div>
 
         {soldPlayers.length === 0 && data.players.length > 0 && (
-          <p className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-            This season has a player pool ({data.players.length}) but no sold rows with this season&apos;s team ids.
-            Sales may never have been stamped with this season, or were cleared by an old full auction reset. Only
-            seasons that still have <strong>Sold</strong> players in the database can show results (e.g. APL 8).
-          </p>
+          <div className="mt-4 space-y-2 rounded-2xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+            <p>
+              Queried <strong>players</strong> with <code className="text-amber-50">season_id = {data.season.id}</code>.
+              Found <strong>{data.players.length}</strong> rows; <strong>0</strong> are Sold.
+            </p>
+            <p className="text-amber-100/80">
+              In Supabase Table Editor, filter players by this season_id and check columns{' '}
+              <code className="text-amber-50">status</code>, <code className="text-amber-50">auction_status</code>,{' '}
+              <code className="text-amber-50">sold_to_team_id</code>, <code className="text-amber-50">sold_price</code>.
+              If those are empty/Available, the archive cannot invent sale results.
+            </p>
+            {data.meta?.statusBreakdown && (
+              <p className="font-mono text-[11px] text-amber-100/70">
+                status|auction_status counts:{' '}
+                {Object.entries(data.meta.statusBreakdown)
+                  .map(([k, v]) => `${k}=${v}`)
+                  .join(', ')}
+              </p>
+            )}
+          </div>
         )}
       </section>
 
@@ -190,7 +166,7 @@ export function OldSeasonDetailsClient({ seasonId }: { seasonId: string }) {
         <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6">
           <h2 className="text-2xl font-black text-white font-display">Teams &amp; captains</h2>
           {squads.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-400">No teams saved for this season.</p>
+            <p className="mt-4 text-sm text-slate-400">No teams for this season_id.</p>
           ) : (
             <div className="mt-5 grid gap-4">
               {squads.map(({ team, soldPlayers: teamPlayers, soldCount, spent }) => (
@@ -201,12 +177,13 @@ export function OldSeasonDetailsClient({ seasonId }: { seasonId: string }) {
                       <img src={team.logo_url} alt={team.team_name} className="h-14 w-14 rounded-2xl object-cover" />
                     ) : (
                       <div className="grid h-14 w-14 place-items-center rounded-2xl bg-amber-400/15 text-sm font-black text-amber-300">
-                        {team.team_name.slice(0, 2).toUpperCase()}
+                        {(team.team_name || 'TM').slice(0, 2).toUpperCase()}
                       </div>
                     )}
                     <div className="min-w-0">
                       <h3 className="truncate text-xl font-black text-white">{team.team_name}</h3>
                       <p className="text-sm text-slate-400">Captain: {team.captain_name}</p>
+                      <p className="text-[10px] font-mono text-slate-500">team_id: {team.id}</p>
                       <p className="text-xs text-amber-300/90">
                         {soldCount} sold · spent {formatMoney(spent)}
                       </p>
@@ -214,7 +191,9 @@ export function OldSeasonDetailsClient({ seasonId }: { seasonId: string }) {
                   </div>
                   <div className="mt-4 grid gap-2">
                     {teamPlayers.length === 0 ? (
-                      <p className="text-sm text-slate-500">No sold players for this team id in this season.</p>
+                      <p className="text-sm text-slate-500">
+                        No players with sold_to_team_id = this team for this season.
+                      </p>
                     ) : (
                       teamPlayers.map((player) => (
                         <div
@@ -252,25 +231,23 @@ export function OldSeasonDetailsClient({ seasonId }: { seasonId: string }) {
             <p className="mt-2 text-slate-300">
               Total spent: <strong className="text-amber-300">{formatMoney(totalSpent)}</strong>
             </p>
-            <p className="mt-2 text-slate-300">Total bids logged: {data.bids.length}</p>
-            <p className="mt-2 text-slate-300">Sold players: {soldPlayers.length}</p>
+            <p className="mt-2 text-slate-300">Bids with this season_id: {data.bids.length}</p>
+            <p className="mt-2 text-slate-300">Sold (season_id filter): {soldPlayers.length}</p>
           </section>
 
           <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6">
             <h2 className="text-2xl font-black text-white font-display">All sold players</h2>
             <div className="mt-3 grid max-h-80 gap-2 overflow-y-auto pr-1">
               {soldPlayers.length === 0 ? (
-                <p className="text-slate-500">No sold players for this season.</p>
+                <p className="text-slate-500">No sold players for this season_id.</p>
               ) : (
-                [...soldPlayers]
-                  .sort((a, b) => Number(b.sold_price || 0) - Number(a.sold_price || 0))
-                  .map((player) => (
-                    <p key={player.id} className="rounded-2xl bg-black/20 px-3 py-2 text-sm text-slate-200">
-                      <span className="font-semibold text-white">{player.name}</span>
-                      <span className="text-slate-500"> → {player.sold_to_team || 'Team'}</span>
-                      <span className="float-right font-bold text-amber-300">{formatMoney(player.sold_price)}</span>
-                    </p>
-                  ))
+                soldPlayers.map((player) => (
+                  <p key={player.id} className="rounded-2xl bg-black/20 px-3 py-2 text-sm text-slate-200">
+                    <span className="font-semibold text-white">{player.name}</span>
+                    <span className="text-slate-500"> → {player.sold_to_team || 'Team'}</span>
+                    <span className="float-right font-bold text-amber-300">{formatMoney(player.sold_price)}</span>
+                  </p>
+                ))
               )}
             </div>
           </section>
@@ -288,16 +265,6 @@ export function OldSeasonDetailsClient({ seasonId }: { seasonId: string }) {
                 ))
               )}
             </div>
-          </section>
-
-          <section className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6">
-            <h2 className="text-2xl font-black text-white font-display">Matches / points</h2>
-            <p className="mt-3 text-slate-300">
-              {data.matches.length ? `${data.matches.length} matches saved.` : 'Match results not available yet.'}
-            </p>
-            <p className="mt-2 text-slate-300">
-              {data.pointsTable.length ? `${data.pointsTable.length} points rows saved.` : 'Points table not available yet.'}
-            </p>
           </section>
         </aside>
       </div>

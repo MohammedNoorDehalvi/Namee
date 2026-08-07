@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from 'next';
+import { Suspense } from 'react';
 import { Inter, Outfit, Playfair_Display } from 'next/font/google';
 import './globals.css';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { AppToaster } from '@/components/ui/AppToaster';
+import { ConfirmDialogHost } from '@/components/ui/ConfirmDialog';
 import { SeasonPublicGate } from '@/components/season/SeasonPublicGate';
 import { SplineIntroOverlay } from '@/components/ui/SplineIntroOverlay';
 import { FloatingDock } from '@/components/ui/FloatingDock';
@@ -57,11 +59,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SplineIntroOverlay />
         <Navbar />
         <SmoothScrollProvider>
-          <SeasonPublicGate>{children}</SeasonPublicGate>
+          <div className="app-shell">
+            <SeasonPublicGate>{children}</SeasonPublicGate>
+          </div>
         </SmoothScrollProvider>
         <Footer />
-        <FloatingDock />
+        <Suspense fallback={null}>
+          <FloatingDock />
+        </Suspense>
         <AppToaster />
+        <ConfirmDialogHost />
       </body>
     </html>
   );

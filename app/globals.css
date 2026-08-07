@@ -92,6 +92,30 @@ body {
   line-height: 1.5;
 }
 
+/* Fixed navbar + bottom dock clearance (safe-area aware) */
+:root {
+  --nav-offset: 5.25rem;
+  --dock-offset: 5.75rem;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding-top: var(--nav-offset);
+  padding-bottom: calc(var(--dock-offset) + env(safe-area-inset-bottom, 0px));
+}
+
+/* Dense operator desks: slightly less bottom pad when dock is hidden */
+.app-shell:has([data-hide-dock]) {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --nav-offset: 5.5rem;
+    --dock-offset: 6rem;
+  }
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -1444,6 +1468,12 @@ select.input option {
   50% { transform: rotate(15deg) scale(1.25); }
   75% { transform: rotate(-5deg) scale(1.05); }
   100% { transform: rotate(0deg) scale(1); }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 @keyframes pulseGlow {

@@ -181,13 +181,18 @@ export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }
             <EventPanel events={events} />
             <UnsoldPanel players={unsoldPlayers} />
             {mode === 'public' && (
-              <GlassButton
-                href="/captain-login"
-                variant="emerald"
-                className="w-full rounded-full py-4 text-center font-extrabold text-slate-950"
-              >
-                <span>Captain Login to Place Bids</span>
-              </GlassButton>
+              <div className="space-y-3">
+                <GlassButton
+                  href="/captain-login"
+                  variant="emerald"
+                  className="w-full rounded-full py-4 text-center font-extrabold text-slate-950"
+                >
+                  <span>Captain login to place bids</span>
+                </GlassButton>
+                <p className="text-center text-xs text-slate-400">
+                  Spectators can watch free. Only franchise captains bid after signing in.
+                </p>
+              </div>
             )}
           </div>
         </div>

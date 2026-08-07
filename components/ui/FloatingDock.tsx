@@ -2,7 +2,7 @@
 
 import React, { useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   AnimatePresence,
   motion,
@@ -16,9 +16,6 @@ import {
   Users,
   Radio,
   Shield,
-  Lock,
-  Settings,
-  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GlassEffect } from './liquid-glass';
@@ -30,32 +27,71 @@ interface DockItem {
   highlight?: boolean;
 }
 
-const defaultItems: DockItem[] = [
+/** Public primary destinations — admin/captain stay in the navbar menu. */
+const publicItems: DockItem[] = [
   { title: 'Home', icon: Home, href: '/' },
   { title: 'Register', icon: UserPlus, href: '/player-registration' },
   { title: 'Players', icon: Users, href: '/players' },
-  { title: 'Live Auction', icon: Radio, href: '/auction', highlight: true },
+  { title: 'Auction', icon: Radio, href: '/auction', highlight: true },
   { title: 'Teams', icon: Shield, href: '/teams' },
-  { title: 'Captain Portal', icon: Lock, href: '/captain-dashboard' },
-  { title: 'Admin', icon: Settings, href: '/admin-dashboard' },
 ];
 
-export function FloatingDock({ items = defaultItems }: { items?: DockItem[] }) {
+const HIDDEN_PREFIXES = ['/admin-dashboard', '/admin-login', '/captain-dashboard', '/captain-login'];
+
+export function FloatingDock({ items = publicItems }: { items?: DockItem[] }) {
   const mouseX = useMotionValue(Infinity);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const hideForRoute =
+    HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
+    (pathname === '/auction' && searchParams?.get('captain') === '1');
+
+  if (hideForRoute) return null;
 
   return (
-    <div className="fixed bottom-6 inset-x-0 z-40 pointer-events-none flex justify-center px-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:bottom-4 sm:px-4">
       <motion.div
         onMouseMove={(e) => mouseX.set(e.pageX)}
         onMouseLeave={() => mouseX.set(Infinity)}
-        initial={{ opacity: 0, y: 30 }}
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="pointer-events-auto"
+        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+        className="pointer-events-auto w-full max-w-md sm:w-auto sm:max-w-none"
       >
-        <GlassEffect className="px-3 py-2 rounded-full border border-white/20 shadow-2xl shadow-black/60 bg-slate-950/80 backdrop-blur-2xl">
-          <div className="flex items-center gap-2">
+        <GlassEffect className="rounded-2xl border border-white/20 bg-slate-950/85 px-2 py-2 shadow-2xl shadow-black/60 backdrop-blur-2xl sm:rounded-full sm:px-3">
+          {/* Mobile: labeled tab bar */}
+          <nav className="flex items-stretch justify-between gap-0.5 sm:hidden" aria-label="Primary">
+            {items.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-bold transition-colors',
+                    isActive
+                      ? 'bg-amber-500/20 text-amber-200'
+                      : item.highlight
+                        ? 'text-emerald-300'
+                        : 'text-slate-400 hover:text-white',
+                  )}
+                >
+                  <span className="relative">
+                    <Icon className="h-5 w-5" />
+                    {item.highlight && !isActive && (
+                      <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    )}
+                  </span>
+                  <span className="truncate">{item.title}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Desktop: magnifying dock */}
+          <div className="hidden items-center gap-2 sm:flex">
             {items.map((item) => (
               <DockIcon
                 key={item.href}
@@ -76,7 +112,7 @@ function DockIcon({
   item,
   isActive,
 }: {
-  mouseX: any;
+  mouseX: ReturnType<typeof useMotionValue<number>>;
   item: DockItem;
   isActive: boolean;
 }) {
@@ -94,7 +130,7 @@ function DockIcon({
   const Icon = item.icon;
 
   return (
-    <Link href={item.href}>
+    <Link href={item.href} aria-label={item.title} aria-current={isActive ? 'page' : undefined}>
       <motion.div
         ref={ref}
         style={{ width, height: width }}
@@ -103,35 +139,32 @@ function DockIcon({
         className={cn(
           'relative flex items-center justify-center rounded-full transition-colors',
           isActive
-            ? 'bg-amber-500/30 text-amber-300 border border-amber-400/40 shadow-lg shadow-amber-500/20'
+            ? 'border border-amber-400/40 bg-amber-500/30 text-amber-300 shadow-lg shadow-amber-500/20'
             : item.highlight
-            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-            : 'bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white'
+              ? 'border border-emerald-500/40 bg-emerald-500/20 text-emerald-400'
+              : 'bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white',
         )}
       >
-        {/* Active pill dot */}
         {isActive && (
-          <span className="absolute -top-1 w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          <span className="absolute -top-1 h-1.5 w-1.5 rounded-full bg-amber-400" />
         )}
 
-        {/* Live highlight badge */}
         {item.highlight && !isActive && (
-          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          <span className="absolute -right-1 -top-1 flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
           </span>
         )}
 
-        <Icon className="w-5 h-5 transition-transform" />
+        <Icon className="h-5 w-5" />
 
-        {/* Floating Tooltip */}
         <AnimatePresence>
           {hovered && (
             <motion.div
               initial={{ opacity: 0, y: 10, scale: 0.85 }}
               animate={{ opacity: 1, y: -42, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.85 }}
-              className="absolute text-xs font-bold text-white px-3 py-1 rounded-full bg-slate-900 border border-white/20 shadow-xl whitespace-nowrap z-50 pointer-events-none"
+              className="pointer-events-none absolute z-50 whitespace-nowrap rounded-full border border-white/20 bg-slate-900 px-3 py-1 text-xs font-bold text-white shadow-xl"
             >
               {item.title}
             </motion.div>

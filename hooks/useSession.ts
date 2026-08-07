@@ -34,8 +34,14 @@ export function clearSession() {
 
 export function useSession() {
   const [session, setSession] = useState<AppSession | null>(null);
+  /** False until the first client read of localStorage (avoids auth-gate flash). */
+  const [ready, setReady] = useState(false);
+
   useEffect(() => {
-    const sync = () => setSession(readSession());
+    const sync = () => {
+      setSession(readSession());
+      setReady(true);
+    };
     sync();
     window.addEventListener('apl-session-change', sync);
     window.addEventListener('storage', sync);
@@ -44,5 +50,6 @@ export function useSession() {
       window.removeEventListener('storage', sync);
     };
   }, []);
-  return { session, clearSession };
+
+  return { session, ready, clearSession };
 }

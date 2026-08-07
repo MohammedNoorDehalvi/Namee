@@ -1,84 +1,136 @@
-# APL Online Auction — Comprehensive Project Structure
+# APL Online Auction — Project Structure
 
 ```text
 apl-online-auction/
 ├── app/
-│   ├── admin-dashboard/            # Admin control desk (squad manager, approval, auction state)
-│   ├── admin-login/                # Secure admin authentication page
-│   ├── api/                        # Next.js Server API Routes
-│   │   ├── admin/                  # Admin auth & player approval API endpoints
-│   │   ├── auction/                # Real-time auction state & lot transition routes
-│   │   ├── bids/                   # Bidding validation & purse deduction handlers
-│   │   ├── captain/                # Captain login & authentication endpoints
-│   │   ├── players/                # Player registration & photo upload handlers
-│   │   ├── season/                 # Season management endpoints
-│   │   └── teams/                  # Team roster & budget APIs
-│   ├── auction/                    # Live Auction arena page (public & captain mode)
-│   ├── captain-dashboard/          # Captain bidding desk & squad wishlist
-│   ├── captain-login/              # Captain login page with spotlight glow
-│   ├── globals.css                 # Global CSS tokens, keyframes & glassmorphism filters
-│   ├── layout.tsx                  # Root layout (Navbar, FloatingDock, SeasonGate, SplineIntro)
-│   ├── page.tsx                    # Landing page entry point
-│   ├── player-registration/        # Player registration draft page
-│   ├── players/                    # Registered player directory
-│   ├── seasons/                    # Season history archives
-│   └── teams/                      # Official franchise squad rosters
+│   ├── admin-dashboard/              # Admin command center (guarded)
+│   ├── admin-login/                  # Admin authentication
+│   ├── api/
+│   │   ├── admin/                    # Admin auth, overview, players, auction, seasons, teams
+│   │   ├── auction/live-state/       # Public auction snapshot
+│   │   ├── bids/place/               # Captain bid placement
+│   │   ├── captain/                  # Captain login + me
+│   │   ├── players/                  # Register + list
+│   │   ├── season/current/           # Active season
+│   │   ├── seasons/                  # Season history
+│   │   └── teams/                    # Team rosters + budgets
+│   ├── auction/                      # Live arena (public) or ?captain=1 desk
+│   ├── captain-dashboard/            # Captain bidding room (guarded)
+│   ├── captain-login/                # Captain authentication
+│   ├── player-registration/          # Player draft form
+│   ├── players/                      # Approved player directory
+│   ├── seasons/                      # Season archives (+ [seasonId])
+│   ├── teams/                        # Franchise squad rosters
+│   ├── globals.css                   # Tokens, buttons, app-shell chrome
+│   ├── layout.tsx                    # Navbar, shell, Footer, dock, toasts, confirm host
+│   └── page.tsx                      # Marketing home
+│
 ├── components/
-│   ├── admin/                      # Admin dashboard cards, player approval table & controls
-│   ├── auction/                    # Live auction arena, bid controls, celebration overlays
-│   ├── captain/                    # Captain dashboard squad stats & bidding desk
-│   ├── forms/                      # Registration & login cards with Spotlight & Meteors
-│   ├── home/                       # Landing page sections (Hero3D, LiveBidSimulator, SaaSFeatures, etc.)
-│   ├── layout/                     # Navbar, Footer & liquid glass shell
-│   ├── players/                    # Player cards with 3D TiltCard & filter bars
-│   ├── providers/                  # Smooth scroll provider (Lenis)
-│   ├── season/                     # Season public gate wrapper
-│   ├── teams/                      # Team squad breakdown cards with budget gauges
-│   └── ui/                         # 21st.dev & Magic UI Interactive Component Library
-│       ├── AnimatedBeam.tsx        # Traveling pulse connection beam
-│       ├── AnimatedNumber.tsx      # Scroll-triggered count-up rolling numbers
-│       ├── AppToaster.tsx          # Toast notification provider
-│       ├── BorderBeam.tsx          # Glowing border ray highlight
-│       ├── Confetti.tsx            # Celebration confetti particle shower
-│       ├── EmptyState.tsx          # Glassmorphic empty state graphic card
-│       ├── FlipWords.tsx           # Kinetic typography text switcher
-│       ├── FloatingDock.tsx        # Glass action navigation dock with hover magnification
-│       ├── LetterLoader.tsx        # Animated letter loading indicator
-│       ├── LoadingSpinner.tsx      # Standard spinner fallback
-│       ├── Marquee3D.tsx           # 3D infinite scrolling ribbon ticker
-│       ├── Meteors.tsx             # Shooting meteor particle trails effect
-│       ├── OrbitingCircles.tsx     # Concentric SVG orbital path animation
-│       ├── RetroGrid.tsx           # 3D perspective animated grid background
-│       ├── SectionHeading.tsx      # Standardized section title header
-│       ├── ShimmerButton.tsx       # Glowing gradient shimmer border ring button
-│       ├── Skeleton.tsx            # Animated shimmer skeleton loader cards
-│       ├── SparklesCore.tsx        # Canvas particle sparkles backdrop
-│       ├── SplineIntroOverlay.tsx  # 3D Spline introductory overlay
-│       ├── SpotlightCard.tsx       # Mouse-tracking radial spotlight card
-│       ├── TiltCard.tsx            # 3D perspective mouse tilt card
-│       └── liquid-glass.tsx        # Liquid glass backdrop filters & button primitives
-├── docs/                           # Documentation guides
-│   ├── RENDER_DEPLOYMENT.md        # Render cloud hosting deployment guide
-│   ├── SECURITY_NOTES.md           # Security, authentication & service role policies
-│   └── SUPABASE_SETUP.md           # Database SQL schema & setup documentation
-├── hooks/                          # Custom React Hooks
-│   ├── useAuctionRealtime.ts       # Supabase Realtime WebSocket subscription hook
-│   ├── usePlayers.ts               # Player list fetching & filtering hook
-│   ├── usePlayerSoldCelebration.ts # Sold player celebration overlay trigger hook
-│   └── useSession.ts               # Local session token & role hook
-├── lib/                            # Core Utilities & Supabase Client
-│   ├── auction-server.ts           # Server-side auction database operations
-│   ├── auction-utils.ts            # Money formatting & budget calculation helpers
-│   ├── constants.ts                # Application constants & category lists
-│   ├── format.ts                   # Initial & currency formatters
-│   ├── supabase/                   # Supabase browser & service role client initialization
-│   ├── types.ts                    # TypeScript type definitions (Player, Team, Bid, Auction)
-│   └── utils.ts                    # Classname merge helper (cn)
-├── public/                         # Static image assets & icons
-├── supabase/                       # SQL Schema files
-│   └── schema.sql                  # Main PostgreSQL schema & RLS policies
-├── next.config.mjs                 # Next.js configuration
-├── package.json                    # Project dependencies & scripts
-├── tailwind.config.ts              # Tailwind CSS theme configuration
-└── tsconfig.json                   # TypeScript compiler options
+│   ├── admin/
+│   │   ├── AdminGuard.tsx            # Session gate + loading/ready UX
+│   │   ├── AdminPanel.tsx            # Auction control, approvals, reports
+│   │   └── AdminChooseNextPlayerPanel.tsx
+│   ├── auction/
+│   │   ├── LiveAuction.tsx           # Public live arena
+│   │   ├── BidControls.tsx           # Shared bid CTA (login / place bid)
+│   │   ├── AuctionScreen.tsx
+│   │   └── PlayerSoldCelebrationOverlay.tsx  # 5s gavel + shatter
+│   ├── captain/
+│   │   ├── CaptainGuard.tsx
+│   │   └── CaptainDashboardClient.tsx  # Sticky budget + mobile bid bar
+│   ├── forms/
+│   │   ├── LoginCard.tsx             # Admin/captain login (show password, errors)
+│   │   └── PlayerRegistrationForm.tsx
+│   ├── home/                         # Landing sections (Hero3D, ScrollShowcase, …)
+│   ├── layout/
+│   │   ├── Navbar.tsx
+│   │   └── Footer.tsx
+│   ├── players/
+│   │   ├── PlayerCard.tsx
+│   │   └── PlayerFilters.tsx         # Labeled search/role + clear
+│   ├── providers/
+│   │   └── SmoothScrollProvider.tsx
+│   ├── season/                       # Gates, old seasons, bid-lock guard, season admin
+│   ├── teams/
+│   │   └── TeamsClient.tsx
+│   └── ui/                           # Shared design system
+│       ├── AppToaster.tsx            # Stacked success/error/info toasts
+│       ├── ConfirmDialog.tsx         # confirmAction / promptAction host
+│       ├── FloatingDock.tsx          # Mobile tab bar + desktop magnify dock
+│       ├── EmptyState.tsx
+│       ├── AuctionSkeleton.tsx
+│       ├── ReconnectingBanner.tsx
+│       ├── Confetti.tsx
+│       ├── liquid-glass.tsx
+│       └── … (TiltCard, SpotlightCard, ShimmerButton, Meteors, …)
+│
+├── docs/
+│   ├── PLAYER_SOLD_ANIMATION.md      # Sold celebration timeline & variants
+│   ├── RENDER_DEPLOYMENT.md
+│   ├── SECURITY_NOTES.md
+│   ├── SECURITY_AUDIT_AND_HARDENING.md
+│   └── SUPABASE_SETUP.md
+│
+├── hooks/
+│   ├── useAuctionRealtime.ts
+│   ├── usePlayers.ts
+│   ├── usePlayerSoldCelebration.ts   # 5s sold queue + dismiss
+│   └── useSession.ts                 # Session + ready flag
+│
+├── lib/
+│   ├── auction-server.ts
+│   ├── auction-utils.ts
+│   ├── auction-ui.ts                 # Bid tick SFX, CSV, print
+│   ├── sold-celebration-audio.ts     # Procedural smash/glass SFX
+│   ├── sold-celebration-config.ts    # Timing + visual variants
+│   ├── format.ts                     # formatMoney (₹), status badges
+│   ├── constants.ts
+│   ├── image-client.ts
+│   ├── types.ts
+│   ├── utils.ts
+│   ├── auth/session.ts
+│   ├── security/                     # Logger, rate-limit, sanitize
+│   └── supabase/                     # Browser + admin clients
+│
+├── public/                           # Static assets, optional frame packs
+├── supabase/
+│   └── schema.sql
+│
+├── middleware.ts
+├── next.config.mjs
+├── package.json
+├── tailwind.config.ts
+├── tsconfig.json
+├── README.md
+└── PROJECT_STRUCTURE.md
 ```
+
+## Route map
+
+| Path | Audience | Notes |
+| --- | --- | --- |
+| `/` | Public | Marketing + auction gate |
+| `/auction` | Public | Live watch floor |
+| `/auction?captain=1` | Captain | Full bidding desk (dock hidden) |
+| `/captain-dashboard` | Captain | Same desk via guard |
+| `/captain-login` | Captain | Login card |
+| `/admin-dashboard` | Admin | Command center (dock hidden) |
+| `/admin-login` | Admin | Login card |
+| `/player-registration` | Public | Registration + success state |
+| `/players` | Public | Filters + cards |
+| `/teams` | Public | Squads + budgets |
+| `/seasons` | Public | Archives |
+
+## UX infrastructure (shared)
+
+- **`.app-shell`** in `layout.tsx` / `globals.css` — top offset for fixed navbar, bottom offset for dock + safe area
+- **`data-hide-dock`** — set on admin/captain/login shells so bottom chrome does not cover CTAs
+- **Toasts** — `toast()`, `toast.success()`, `toast.error()` via `AppToaster`
+- **Dialogs** — `confirmAction()` / `promptAction()` via `ConfirmDialogHost` (replaces browser confirm/prompt for admin ops)
+- **Money** — `formatMoney()` / `formatMoneyFull()` always include `₹`
+
+## Related docs
+
+- [README.md](./README.md) — setup and overview  
+- [docs/PLAYER_SOLD_ANIMATION.md](./docs/PLAYER_SOLD_ANIMATION.md) — sold overlay design  
+- [docs/SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md) — database  

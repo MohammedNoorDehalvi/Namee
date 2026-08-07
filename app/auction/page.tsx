@@ -14,5 +14,9 @@ export default function AuctionPage({ searchParams }: AuctionPageProps) {
     return <CaptainDashboardClient />;
   }
 
-  return <LiveAuction mode="public" />;
+  return (
+    <div className="mx-auto max-w-7xl px-4 pb-4 sm:px-6 lg:px-8">
+      <LiveAuction mode="public" />
+    </div>
+  );
 }

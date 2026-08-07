@@ -91,8 +91,8 @@ export function CaptainDashboardClient() {
 
   async function bid() {
     const stored = readSession();
-    if (!stored || !currentPlayer) return toast('Login as captain to bid.');
-    if (cannotBidReason) return toast(cannotBidReason);
+    if (!stored || !currentPlayer) return toast.error('Login as captain to bid.');
+    if (cannotBidReason) return toast.error(cannotBidReason);
 
     setBusy(true);
     const res = await fetch('/api/bids/place', {
@@ -107,10 +107,10 @@ export function CaptainDashboardClient() {
     const json = await res.json().catch(() => ({}));
     setBusy(false);
 
-    if (!res.ok) return toast(json.error || 'Bid failed');
+    if (!res.ok) return toast.error(json.error || 'Bid failed');
 
     playBidSound();
-    toast(`Bid placed: ${formatMoney(json.bid_amount)}`);
+    toast.success(`Bid placed: ${formatMoney(json.bid_amount)}`);
     void refresh({ silent: true });
     void loadMine();
   }
@@ -137,12 +137,12 @@ export function CaptainDashboardClient() {
   }
 
   return (
-    <>
+    <div data-hide-dock>
       <ReconnectingBanner visible={Boolean(realtimeDisconnected)} />
       <PlayerSoldCelebrationOverlay celebration={celebration} />
 
-      {/* Sticky remaining budget — always visible */}
-      <div className="sticky top-[70px] z-40 border-b border-white/10 bg-apl-dark/95 px-4 py-2 backdrop-blur-xl sm:px-6">
+      {/* Sticky remaining budget — under fixed navbar */}
+      <div className="sticky top-[4.5rem] z-40 border-b border-white/10 bg-slate-950/95 px-4 py-2.5 backdrop-blur-xl sm:top-[4.75rem] sm:px-6">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <WalletCards className="h-4 w-4 text-apl-gold" />
@@ -159,7 +159,7 @@ export function CaptainDashboardClient() {
         </div>
       </div>
 
-      <main className="section-shell space-y-6 overflow-x-hidden pb-8">
+      <main className="section-shell space-y-6 overflow-x-hidden pb-28 sm:pb-10">
         <section className="glass-card p-4 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-center gap-4">
@@ -247,14 +247,14 @@ export function CaptainDashboardClient() {
                     type="button"
                     onClick={() => void bid()}
                     disabled={Boolean(cannotBidReason) || busy}
-                    className={`btn-primary mt-6 w-full justify-center transition ${busy ? 'opacity-70' : ''} disabled:cursor-not-allowed disabled:opacity-45 disabled:grayscale`}
+                    className={`btn-primary mt-6 hidden w-full justify-center transition sm:inline-flex ${busy ? 'opacity-70' : ''} disabled:cursor-not-allowed disabled:opacity-45 disabled:grayscale`}
                   >
                     <Gavel className="h-5 w-5" />
                     {busy ? 'Bidding…' : cannotBidReason ? cannotBidReason : `Bid ${formatMoney(nextBid)}`}
                   </button>
 
                   {cannotBidReason && !busy && (
-                    <p className="mt-3 text-center text-sm text-white/55">{cannotBidReason}</p>
+                    <p className="mt-3 hidden text-center text-sm text-white/55 sm:block">{cannotBidReason}</p>
                   )}
                 </div>
               </div>
@@ -275,7 +275,28 @@ export function CaptainDashboardClient() {
           players={players}
         />
       </main>
-    </>
+
+      {/* Mobile sticky bid bar */}
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-slate-950/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl sm:hidden">
+        <div className="mx-auto flex max-w-lg flex-col gap-1.5">
+          <div className="flex items-center justify-between text-xs text-white/55">
+            <span>
+              Next bid <strong className="text-white">{formatMoney(nextBid)}</strong>
+            </span>
+            <span>Purse {formatMoney(team?.remaining_budget)}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void bid()}
+            disabled={Boolean(cannotBidReason) || busy || !currentPlayer}
+            className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-45 disabled:grayscale"
+          >
+            <Gavel className="h-5 w-5" />
+            {busy ? 'Bidding…' : cannotBidReason ? cannotBidReason : `Bid ${formatMoney(nextBid)}`}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

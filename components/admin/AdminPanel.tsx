@@ -29,6 +29,8 @@ import type { Auction, AuctionEvent, AuctionSummary, Bid, Captain, Player, Team 
 import { formatMoney, initials } from '@/lib/format';
 import { compressImageFile, fileSizeLabel } from '@/lib/image-client';
 import { toast } from '@/components/ui/AppToaster';
+import { confirmAction, promptAction } from '@/components/ui/ConfirmDialog';
+import { AdminSkeleton } from '@/components/ui/AuctionSkeleton';
 
 type Overview = {
   players: Player[];
@@ -128,7 +130,7 @@ export function AdminPanel() {
       }
       if (!manual.team_id && json.teams?.length) setManual((old) => ({ ...old, team_id: json.teams[0].id }));
     } catch (err) {
-      if (!silent) toast(err instanceof Error ? err.message : 'Failed to load admin data');
+      if (!silent) toast.error(err instanceof Error ? err.message : 'Failed to load admin data');
     } finally {
       if (!silent) setLoading(false);
     }
@@ -159,24 +161,51 @@ export function AdminPanel() {
     setBusy(true);
     try {
       await fn();
-      toast(label);
+      toast.success(label);
       await load(true);
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Action failed');
+      toast.error(err instanceof Error ? err.message : 'Action failed');
     } finally {
       setBusy(false);
     }
   }
 
   async function status(action: 'start' | 'pause' | 'resume' | 'end' | 'reset') {
-    const confirmText: Record<typeof action, string> = {
-      start: 'Start auction now?',
-      pause: 'Pause auction?',
-      resume: 'Resume auction?',
-      end: 'End auction and show reports?',
-      reset: 'Reset full auction? This clears bids and sold/unsold decisions.',
+    const copy: Record<typeof action, { title: string; description: string; variant: 'primary' | 'danger' | 'warning' }> = {
+      start: {
+        title: 'Start auction now?',
+        description: 'The public arena will go live and captains can begin bidding when a player is on the lot.',
+        variant: 'primary',
+      },
+      pause: {
+        title: 'Pause auction?',
+        description: 'Bidding freezes until you resume. The current lot stays selected.',
+        variant: 'warning',
+      },
+      resume: {
+        title: 'Resume auction?',
+        description: 'Live bidding continues from the current state.',
+        variant: 'primary',
+      },
+      end: {
+        title: 'End auction and show reports?',
+        description: 'This finalizes the session and surfaces the end-of-auction report views.',
+        variant: 'warning',
+      },
+      reset: {
+        title: 'Reset the full auction?',
+        description: 'Clears bids and sold/unsold decisions. This cannot be undone from the UI.',
+        variant: 'danger',
+      },
     };
-    if (!confirm(confirmText[action])) return;
+    const cfg = copy[action];
+    const ok = await confirmAction({
+      title: cfg.title,
+      description: cfg.description,
+      variant: cfg.variant,
+      confirmLabel: action === 'reset' ? 'Reset auction' : 'Confirm',
+    });
+    if (!ok) return;
     await run(`Auction ${action} done`, () =>
       api('/api/admin/auction/status', { method: 'POST', body: JSON.stringify({ action }) }).then(() => undefined),
     );
@@ -193,9 +222,9 @@ export function AdminPanel() {
       const optimized = await compressImageFile(file, { maxDimension: 800, maxSizeBytes: 800 * 1024, quality: 0.8 });
       if (target === 'team-logo') setTeamLogoFile(optimized);
       else setCaptainPhotoFile(optimized);
-      if (optimized.size < file.size) toast(`Image optimized: ${fileSizeLabel(optimized.size)}`);
+      if (optimized.size < file.size) toast.success(`Image optimized: ${fileSizeLabel(optimized.size)}`);
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Could not use this image.');
+      toast.error(err instanceof Error ? err.message : 'Could not use this image.');
       if (target === 'team-logo') setTeamLogoFile(null);
       else setCaptainPhotoFile(null);
     }
@@ -231,13 +260,19 @@ export function AdminPanel() {
       update: 'Player details saved',
       'approve-update': 'Player approved with edits',
     };
-    const confirmText: Record<typeof action, string> = {
-      approve: `Approve ${player.name}?`,
-      reject: `Reject ${player.name}?`,
-      update: `Save changes for ${player.name}?`,
-      'approve-update': `Approve ${player.name} with these edits?`,
+    const confirmCopy: Record<typeof action, { title: string; variant: 'primary' | 'danger' | 'warning' }> = {
+      approve: { title: `Approve ${player.name}?`, variant: 'primary' },
+      reject: { title: `Reject ${player.name}?`, variant: 'danger' },
+      update: { title: `Save changes for ${player.name}?`, variant: 'primary' },
+      'approve-update': { title: `Approve ${player.name} with these edits?`, variant: 'primary' },
     };
-    if (!confirm(confirmText[action])) return;
+    const ok = await confirmAction({
+      title: confirmCopy[action].title,
+      description: action === 'reject' ? 'Rejected players stay out of the auction pool until re-approved.' : undefined,
+      variant: confirmCopy[action].variant,
+      confirmLabel: action.startsWith('approve') ? 'Approve' : action === 'reject' ? 'Reject' : 'Save',
+    });
+    if (!ok) return;
     await run(label[action], () =>
       api('/api/admin/players/action', {
         method: 'POST',
@@ -255,12 +290,24 @@ export function AdminPanel() {
   }
 
   async function sold() {
-    if (!confirm('Confirm sold to current highest bidder?')) return;
+    const ok = await confirmAction({
+      title: 'Mark player sold?',
+      description: 'Assigns the current lot to the highest bidder and deducts their purse.',
+      confirmLabel: 'Confirm sold',
+      variant: 'primary',
+    });
+    if (!ok) return;
     await run('Player sold', () => api('/api/admin/auction/sold', { method: 'POST' }).then(() => undefined));
   }
 
   async function unsold() {
-    if (!confirm('Confirm mark current player as unsold?')) return;
+    const ok = await confirmAction({
+      title: 'Mark player unsold?',
+      description: 'Closes the lot with no purchase. The player can be re-auctioned later.',
+      confirmLabel: 'Mark unsold',
+      variant: 'warning',
+    });
+    if (!ok) return;
     await run('Player marked unsold', () => api('/api/admin/auction/unsold', { method: 'POST' }).then(() => undefined));
   }
 
@@ -275,8 +322,14 @@ export function AdminPanel() {
   }
 
   async function manualAssign() {
-    if (!manual.player_id || !manual.team_id) return toast('Choose player and team.');
-    if (!confirm('Assign this player manually to team?')) return;
+    if (!manual.player_id || !manual.team_id) return toast.error('Choose player and team.');
+    const ok = await confirmAction({
+      title: 'Manually assign this player?',
+      description: 'Bypasses the live bid ladder and assigns the selected player to the chosen team at the price you set.',
+      confirmLabel: 'Assign player',
+      variant: 'warning',
+    });
+    if (!ok) return;
     await run('Player assigned manually', () =>
       api('/api/admin/auction/manual-assign', {
         method: 'POST',
@@ -290,7 +343,13 @@ export function AdminPanel() {
   }
 
   async function removePlayer(playerId: string) {
-    if (!confirm('Remove this player from team and return points?')) return;
+    const ok = await confirmAction({
+      title: 'Remove player from team?',
+      description: 'Returns spent points to the franchise purse and frees a squad slot.',
+      confirmLabel: 'Remove player',
+      variant: 'danger',
+    });
+    if (!ok) return;
     await run('Player removed from team', () =>
       api('/api/admin/auction/remove-player', {
         method: 'POST',
@@ -300,7 +359,15 @@ export function AdminPanel() {
   }
 
   async function editPrice(player: Player) {
-    const value = prompt('New sold price', String(player.sold_price || 0));
+    const value = await promptAction({
+      title: `Edit sold price for ${player.name}`,
+      description: 'Enter the corrected sold amount. Team remaining budget will be recalculated.',
+      inputLabel: 'Sold price',
+      defaultValue: String(player.sold_price || 0),
+      inputType: 'number',
+      confirmLabel: 'Update price',
+      variant: 'warning',
+    });
     if (value === null) return;
     await run('Sold price edited', () =>
       api('/api/admin/auction/edit-price', {
@@ -332,15 +399,25 @@ export function AdminPanel() {
   const showManualPicker = Boolean(data?.auction?.auction_status === 'LIVE' && !data.auction.manual_picker_hidden && !currentPlayer);
 
   if (loading) {
-    return <div className="mx-auto max-w-7xl px-4 py-16 text-center text-white/70">Loading admin dashboard...</div>;
+    return <AdminSkeleton />;
   }
 
   if (!data) {
-    return <div className="mx-auto max-w-7xl px-4 py-16 text-center text-red-200">Admin data could not load.</div>;
+    return (
+      <div className="mx-auto max-w-xl px-4 py-16 text-center">
+        <div className="rounded-[2rem] border border-red-400/30 bg-red-500/10 p-8">
+          <p className="text-lg font-extrabold text-red-100">Admin data could not load</p>
+          <p className="mt-2 text-sm text-red-200/80">Check your session and network, then try again.</p>
+          <button type="button" onClick={() => void load()} className="btn-primary mt-6">
+            <RefreshCw className="h-4 w-4" /> Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 text-white sm:px-6 lg:px-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 text-white sm:px-6 lg:px-8">
       <section className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.09] to-apl-green/10 p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
         <span className="inline-flex rounded-full border border-apl-gold/25 bg-apl-gold/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-apl-gold">
           Admin Control

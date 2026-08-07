@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { TiltCard } from '@/components/ui/TiltCard';
 import { SpotlightCard } from '@/components/ui/SpotlightCard';
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
+import { CardSkeleton } from '@/components/ui/Skeleton';
 
 type TeamGroup = Team & {
   players: Player[];
@@ -62,7 +63,13 @@ export function TeamsClient() {
   }, []);
 
   if (loading) {
-    return <div className="py-20 text-center text-white/70">Loading teams...</div>;
+    return (
+      <div className="grid gap-6 md:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <CardSkeleton key={i} />
+        ))}
+      </div>
+    );
   }
 
   if (error) {
@@ -126,7 +133,7 @@ function TeamCard({ team }: { team: TeamGroup }) {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <Info label="Total Budget" value={<AnimatedNumber value={Number(team.budget || 0)} prefix="₹" />} />
           <Info label="Remaining Purse" value={<AnimatedNumber value={Number(team.remaining_budget || 0)} prefix="₹" />} highlight />
-          <Info label="Players Bought" value={<AnimatedNumber value={team.players.length} suffix="/4" />} />
+          <Info label="Players Bought" value={<AnimatedNumber value={team.players.length} suffix={`/${team.max_players || 4}`} />} />
           <Info label="Points Spent" value={<AnimatedNumber value={spent} prefix="₹" />} />
         </div>
 

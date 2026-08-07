@@ -1,8 +1,8 @@
 "use client";
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { ArrowUpRight, Gavel, Menu, Shield, Trophy, X } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { ArrowUpRight, Menu, Trophy, X } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clearSession, useSession } from '@/hooks/useSession';
@@ -21,7 +21,15 @@ const links = [
 export function Navbar() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const { session } = useSession();
+
+  function handleLogout() {
+    clearSession();
+    setOpen(false);
+    router.push('/');
+    router.refresh();
+  }
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 px-4 py-3 transition-all duration-300">
@@ -85,21 +93,21 @@ export function Navbar() {
 
           {/* Action CTAs & Session */}
           <div className="hidden lg:flex items-center gap-3">
-            {/* Live Auction Badge Pill */}
+            {/* Auction floor shortcut — status shown on the arena page itself */}
             <Link
               href="/auction"
               className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-900/60 transition-colors"
             >
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
               </span>
-              <span className="tracking-wide uppercase">LIVE BIDDING</span>
+              <span className="tracking-wide uppercase">Auction floor</span>
             </Link>
 
             {session ? (
               <button
-                onClick={clearSession}
+                type="button"
+                onClick={handleLogout}
                 className="px-4 py-1.5 rounded-full bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs font-semibold text-slate-200 transition-colors"
               >
                 Logout ({session.name})
@@ -159,10 +167,8 @@ export function Navbar() {
                 <div className="pt-3 border-t border-white/10">
                   {session ? (
                     <button
-                      onClick={() => {
-                        clearSession();
-                        setOpen(false);
-                      }}
+                      type="button"
+                      onClick={handleLogout}
                       className="w-full text-center py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-slate-100 font-bold text-sm transition-all"
                     >
                       Logout ({session.name})

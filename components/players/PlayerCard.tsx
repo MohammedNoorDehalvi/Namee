@@ -3,11 +3,14 @@
 import Image from 'next/image';
 import { Trophy, User, Zap } from 'lucide-react';
 import type { Player } from '@/lib/types';
-import { formatMoney, initials, statusClass } from '@/lib/format';
+import { displayPlayerStatus, formatMoney, initials, statusClass } from '@/lib/format';
 import { TiltCard } from '@/components/ui/TiltCard';
 import { SpotlightCard } from '@/components/ui/SpotlightCard';
 
 export function PlayerCard({ player }: { player: Player }) {
+  const statusLabel = displayPlayerStatus(player);
+  const isSold = statusLabel === 'Sold';
+
   return (
     <TiltCard tiltMaxAngle={10} glareOpacity={0.15}>
       <SpotlightCard
@@ -17,15 +20,15 @@ export function PlayerCard({ player }: { player: Player }) {
         <div>
           <div className="relative h-60 w-full bg-gradient-to-br from-amber-500/20 via-slate-900 to-cyan-500/20">
             {player.photo_url ? (
-              <Image src={player.photo_url} alt={player.name} fill className="object-cover" />
+              <Image src={player.photo_url} alt={player.name} fill className="object-cover" sizes="(max-width:768px) 100vw, 33vw" />
             ) : (
               <div className="grid h-full place-items-center text-6xl font-black text-amber-400 font-display">
                 {initials(player.name)}
               </div>
             )}
             <div className="absolute left-4 top-4">
-              <span className={`badge ${statusClass(player.status)} uppercase text-[10px] tracking-wider font-extrabold px-3 py-1 rounded-full shadow-lg`}>
-                {player.status}
+              <span className={`badge ${statusClass(statusLabel)} uppercase text-[10px] tracking-wider font-extrabold px-3 py-1 rounded-full shadow-lg`}>
+                {statusLabel}
               </span>
             </div>
           </div>
@@ -52,14 +55,18 @@ export function PlayerCard({ player }: { player: Player }) {
 
         <div className="px-6 pb-6 pt-2">
           <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-3.5 text-xs text-slate-300 font-medium">
-            {player.status === 'Sold' ? (
+            {isSold ? (
               <>
                 Sold to <b className="text-amber-400 font-bold">{player.sold_to_team}</b> for{' '}
                 <b className="text-emerald-400 font-bold">{formatMoney(player.sold_price)}</b>
               </>
+            ) : statusLabel === 'Live' ? (
+              <span className="flex items-center gap-1.5 text-amber-300 font-semibold">
+                <Zap className="w-3.5 h-3.5" /> Currently on the auction lot
+              </span>
             ) : (
               <span className="flex items-center gap-1.5 text-cyan-400 font-semibold">
-                <Zap className="w-3.5 h-3.5" /> Approved for Live Auction Pool
+                <Zap className="w-3.5 h-3.5" /> Approved for live auction pool
               </span>
             )}
           </div>

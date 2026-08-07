@@ -7,6 +7,7 @@ import { readSession } from '@/hooks/useSession';
 import type { Auction, Player } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
 import { toast } from '@/components/ui/AppToaster';
+import { confirmAction } from '@/components/ui/ConfirmDialog';
 
 type AdminOverviewLite = {
   players: Player[];
@@ -111,17 +112,22 @@ export function AdminChooseNextPlayerPanel() {
 
   async function choosePlayer() {
     if (!selectedPlayerId) {
-      toast('Choose an approved player first.');
+      toast.error('Choose an approved player first.');
       return;
     }
 
     if (currentPlayer) {
-      toast('Complete the current player first, then choose next player.');
+      toast.error('Complete the current player first, then choose next player.');
       return;
     }
 
     const player = players.find((item) => item.id === selectedPlayerId);
-    const ok = confirm(`Set ${player?.name || 'this player'} as the next auction player?`);
+    const ok = await confirmAction({
+      title: `Set ${player?.name || 'this player'} as next lot?`,
+      description: 'This player becomes the active auction lot for captains to bid on.',
+      confirmLabel: 'Select player',
+      variant: 'primary',
+    });
 
     if (!ok) return;
 
@@ -133,10 +139,10 @@ export function AdminChooseNextPlayerPanel() {
         body: JSON.stringify({ player_id: selectedPlayerId }),
       });
 
-      toast('Next player selected by admin.');
+      toast.success('Next player selected by admin.');
       await load(true);
     } catch (error) {
-      toast(error instanceof Error ? error.message : 'Could not select next player.');
+      toast.error(error instanceof Error ? error.message : 'Could not select next player.');
     } finally {
       setBusy(false);
     }

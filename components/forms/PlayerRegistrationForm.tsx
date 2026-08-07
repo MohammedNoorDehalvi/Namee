@@ -2,7 +2,8 @@
 
 import type { FormEvent, ReactNode } from "react";
 import { useRef, useState } from "react";
-import { ImagePlus, Send, X, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import { ImagePlus, Send, X, CheckCircle2, PartyPopper } from "lucide-react";
 
 import { battingStyles, bowlingStyles, playerRoles } from "@/lib/constants";
 import { normalizePhoneNumber } from "@/lib/auction-utils";
@@ -20,15 +21,29 @@ const initialForm = {
   bowling_style: "None",
 };
 
+const fieldClass =
+  "w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3.5 text-sm font-medium text-white placeholder-slate-400 transition-all focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-60";
+
+const selectClass =
+  "w-full rounded-2xl border border-white/15 bg-slate-950/80 px-4 py-3.5 text-sm font-medium text-white transition-all focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-60";
+
 export function PlayerRegistrationForm() {
   const [form, setForm] = useState(initialForm);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [submittedName, setSubmittedName] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   function update(key: string, value: string) {
     setForm((old) => ({ ...old, [key]: value }));
+    setFieldErrors((old) => {
+      if (!old[key]) return old;
+      const next = { ...old };
+      delete next[key];
+      return next;
+    });
   }
 
   function onFileChange(nextFile: File | null) {
@@ -38,6 +53,12 @@ export function PlayerRegistrationForm() {
 
     setFile(nextFile);
     setPreview(nextFile ? URL.createObjectURL(nextFile) : null);
+    setFieldErrors((old) => {
+      if (!old.photo) return old;
+      const next = { ...old };
+      delete next.photo;
+      return next;
+    });
   }
 
   function openPhotoPicker() {
@@ -52,22 +73,24 @@ export function PlayerRegistrationForm() {
     }
   }
 
+  function validate(): boolean {
+    const errors: Record<string, string> = {};
+    if (!form.name.trim()) errors.name = "Player name is required.";
+    const digits = normalizePhoneNumber(form.phone).replace(/\D/g, "");
+    if (digits.length < 10) errors.phone = "Enter a valid 10-digit phone number.";
+    if (!file) errors.photo = "Player photo is required.";
+    else if (!file.type.startsWith("image/")) errors.photo = "Upload an image file only.";
+    else if (file.size > 5 * 1024 * 1024) errors.photo = "Photo must be under 5 MB.";
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-
-    if (!file) {
-      toast("Player photo is required. Please upload a photo from gallery.");
-      openPhotoPicker();
-      return;
-    }
-
-    if (!file.type.startsWith("image/")) {
-      toast("Please upload an image file only.");
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast("Photo is too large. Upload an image under 5 MB.");
+    if (!validate()) {
+      toast.error("Please fix the highlighted fields.");
+      if (!file) openPhotoPicker();
       return;
     }
 
@@ -80,7 +103,7 @@ export function PlayerRegistrationForm() {
       body.set("role", form.role);
       body.set("batting_style", form.batting_style);
       body.set("bowling_style", form.bowling_style);
-      body.set("photo", file);
+      body.set("photo", file!);
 
       const res = await fetch("/api/players/register", {
         method: "POST",
@@ -93,72 +116,104 @@ export function PlayerRegistrationForm() {
         throw new Error(json.error || "Registration failed");
       }
 
-      toast("Player registered. Waiting for admin approval.");
+      const name = form.name.trim();
+      toast.success("Player registered. Waiting for admin approval.");
+      setSubmittedName(name);
       setForm(initialForm);
       removePhoto();
+      setFieldErrors({});
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Registration failed");
+      toast.error(err instanceof Error ? err.message : "Registration failed");
     } finally {
       setLoading(false);
     }
   }
 
+  if (submittedName) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <SpotlightCard
+          spotlightColor="rgba(16, 185, 129, 0.2)"
+          className="relative overflow-hidden rounded-[2.5rem] border border-emerald-400/25 bg-slate-900/90 p-8 text-center shadow-2xl backdrop-blur-2xl sm:p-12"
+        >
+          <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-3xl border border-emerald-400/30 bg-emerald-400/15 text-emerald-300">
+            <PartyPopper className="h-8 w-8" />
+          </div>
+          <h2 className="text-3xl font-extrabold text-white font-display">Registration received</h2>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-300">
+            <strong className="text-white">{submittedName}</strong> is in the approval queue. An admin will review the
+            profile and base price before the auction pool goes live.
+          </p>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <button type="button" onClick={() => setSubmittedName(null)} className="btn-primary justify-center">
+              Register another player
+            </button>
+            <Link href="/players" className="btn-ghost justify-center">
+              View player list
+            </Link>
+          </div>
+        </SpotlightCard>
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={onSubmit} className="mx-auto max-w-2xl">
+    <form onSubmit={onSubmit} className="mx-auto max-w-2xl" noValidate>
       <SpotlightCard
         spotlightColor="rgba(245, 158, 11, 0.18)"
-        className="relative overflow-hidden rounded-[2.5rem] border border-white/15 bg-slate-900/90 p-6 sm:p-10 shadow-2xl backdrop-blur-2xl space-y-6"
+        className="relative space-y-6 overflow-hidden rounded-[2.5rem] border border-white/15 bg-slate-900/90 p-6 shadow-2xl backdrop-blur-2xl sm:p-10"
       >
         <BorderBeam lightColor="#F59E0B" lightWidth={280} duration={8} />
-
-        {/* 21st.dev Meteors Background */}
         <Meteors number={12} />
 
-        <div className="flex items-center gap-4 pb-4 border-b border-white/10 relative z-10">
-          <div className="rounded-2xl bg-amber-400/20 border border-amber-400/30 p-3.5 text-amber-300 shadow-lg shadow-amber-500/10">
+        <div className="relative z-10 flex items-center gap-4 border-b border-white/10 pb-4">
+          <div className="rounded-2xl border border-amber-400/30 bg-amber-400/20 p-3.5 text-amber-300 shadow-lg shadow-amber-500/10">
             <ImagePlus className="h-6 w-6" />
           </div>
 
           <div>
             <span className="text-xs font-extrabold uppercase tracking-[0.25em] text-amber-400 font-display">
-              OFFICIAL DRAFT REGISTRATION
+              Official draft registration
             </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-display">
-              Player Registration
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-300">
-              Fill details & upload photo to enter the Season 8 auction pool.
+            <h1 className="text-2xl font-extrabold text-white font-display sm:text-3xl">Player Registration</h1>
+            <p className="text-xs text-slate-300 sm:text-sm">
+              Submit your details and photo to enter the current season auction pool.
             </p>
           </div>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 relative z-10">
-          <Field label="Player Name *">
+        <div className="relative z-10 grid gap-5 sm:grid-cols-2">
+          <Field label="Player name *" error={fieldErrors.name}>
             <input
-              className="w-full rounded-2xl bg-white/10 border border-white/15 px-4 py-3.5 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all text-sm font-medium"
+              className={fieldClass}
               value={form.name}
               onChange={(e) => update("name", e.target.value)}
               placeholder="e.g. Kabir"
               required
+              disabled={loading}
+              autoComplete="name"
             />
           </Field>
 
-          <Field label="Phone Number *">
+          <Field label="Phone number *" error={fieldErrors.phone}>
             <input
-              className="w-full rounded-2xl bg-white/10 border border-white/15 px-4 py-3.5 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all text-sm font-medium"
+              className={fieldClass}
               value={form.phone}
               onChange={(e) => update("phone", e.target.value)}
               inputMode="tel"
               placeholder="9999999999"
               required
+              disabled={loading}
+              autoComplete="tel"
             />
           </Field>
 
-          <Field label="Primary Playing Role *">
+          <Field label="Primary playing role *">
             <select
-              className="w-full rounded-2xl bg-slate-950 border border-white/15 px-4 py-3.5 text-white focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all text-sm font-medium"
+              className={selectClass}
               value={form.role}
               onChange={(e) => update("role", e.target.value)}
+              disabled={loading}
             >
               {playerRoles.map((role) => (
                 <option key={role} value={role}>
@@ -168,11 +223,12 @@ export function PlayerRegistrationForm() {
             </select>
           </Field>
 
-          <Field label="Batting Style *">
+          <Field label="Batting style *">
             <select
-              className="w-full rounded-2xl bg-slate-950 border border-white/15 px-4 py-3.5 text-white focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all text-sm font-medium"
+              className={selectClass}
               value={form.batting_style}
               onChange={(e) => update("batting_style", e.target.value)}
+              disabled={loading}
             >
               {battingStyles.map((style) => (
                 <option key={style} value={style}>
@@ -182,11 +238,12 @@ export function PlayerRegistrationForm() {
             </select>
           </Field>
 
-          <Field label="Bowling Style *">
+          <Field label="Bowling style *">
             <select
-              className="w-full rounded-2xl bg-slate-950 border border-white/15 px-4 py-3.5 text-white focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all text-sm font-medium"
+              className={selectClass}
               value={form.bowling_style}
               onChange={(e) => update("bowling_style", e.target.value)}
+              disabled={loading}
             >
               {bowlingStyles.map((style) => (
                 <option key={style} value={style}>
@@ -196,8 +253,12 @@ export function PlayerRegistrationForm() {
             </select>
           </Field>
 
-          <Field label="Player Photo (Required) *">
-            <div className="rounded-3xl border border-white/15 bg-white/5 p-4">
+          <Field label="Player photo (required) *" error={fieldErrors.photo}>
+            <div
+              className={`rounded-3xl border bg-white/5 p-4 ${
+                fieldErrors.photo ? "border-red-400/40" : "border-white/15"
+              }`}
+            >
               <input
                 ref={fileRef}
                 className="hidden"
@@ -215,16 +276,16 @@ export function PlayerRegistrationForm() {
                   />
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-bold text-white text-xs">{file?.name}</p>
-                    <p className="mt-0.5 text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Photo Selected
+                    <p className="truncate text-xs font-bold text-white">{file?.name}</p>
+                    <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Photo selected
                     </p>
 
                     <div className="mt-2.5 flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={openPhotoPicker}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/20 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-white/20"
                       >
                         Change
                       </button>
@@ -232,7 +293,7 @@ export function PlayerRegistrationForm() {
                       <button
                         type="button"
                         onClick={removePhoto}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-red-400/30 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-500/20 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-red-400/30 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-300 transition-colors hover:bg-red-500/20"
                       >
                         <X size={14} /> Remove
                       </button>
@@ -243,43 +304,38 @@ export function PlayerRegistrationForm() {
                 <button
                   type="button"
                   onClick={openPhotoPicker}
-                  className="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-amber-400/40 bg-amber-400/10 px-4 py-6 text-center font-extrabold text-amber-300 hover:bg-amber-400/20 transition-all cursor-pointer"
+                  className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-amber-400/40 bg-amber-400/10 px-4 py-6 text-center font-extrabold text-amber-300 transition-all hover:bg-amber-400/20"
                 >
                   <ImagePlus size={24} />
-                  <span className="text-xs">Upload Player Photo</span>
-                  <span className="text-[10px] text-slate-300 font-normal">Max 5 MB image</span>
+                  <span className="text-xs">Upload player photo</span>
+                  <span className="text-[10px] font-normal text-slate-300">Max 5 MB image</span>
                 </button>
               )}
             </div>
           </Field>
         </div>
 
-        {/* 21st.dev ShimmerButton for Submit */}
-        <div className="pt-2 relative z-10">
-          <ShimmerButton
-            type="submit"
-            disabled={loading}
-            shimmerColor="#F59E0B"
-            className="w-full py-4 justify-center"
-          >
+        <div className="relative z-10 pt-2">
+          <ShimmerButton type="submit" disabled={loading} shimmerColor="#F59E0B" className="w-full justify-center py-4">
             <Send className="h-5 w-5" />
-            <span>{loading ? "Submitting..." : "Submit Player Registration"}</span>
+            <span>{loading ? "Submitting…" : "Submit player registration"}</span>
           </ShimmerButton>
         </div>
 
-        <p className="text-center text-xs text-slate-400 relative z-10">
-          Base price & approval will be reviewed by admin prior to auction.
+        <p className="relative z-10 text-center text-xs text-slate-400">
+          Base price and approval are reviewed by admin before the auction.
         </p>
       </SpotlightCard>
     </form>
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children, error }: { label: string; children: ReactNode; error?: string }) {
   return (
-    <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 space-y-2">
+    <label className="block space-y-2 text-xs font-bold uppercase tracking-wider text-slate-300">
       <span className="block">{label}</span>
       {children}
+      {error && <span className="block normal-case tracking-normal text-red-300 font-semibold">{error}</span>}
     </label>
   );
 }

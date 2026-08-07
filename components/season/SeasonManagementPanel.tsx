@@ -6,6 +6,7 @@ import { AlertTriangle, CheckSquare, History, Import, Play, RefreshCw, Square } 
 import { readSession } from '@/hooks/useSession';
 import type { Captain, Player, Season, Team } from '@/lib/types';
 import { toast } from '@/components/ui/AppToaster';
+import { confirmAction } from '@/components/ui/ConfirmDialog';
 
 type SeasonDetails = {
   season: Season;
@@ -131,9 +132,12 @@ export function SeasonManagementPanel() {
       return;
     }
 
-    const ok = confirm(
-      `Are you sure you want to end ${current.name}? This will stop the current season but will not delete any data.`,
-    );
+    const ok = await confirmAction({
+      title: `End ${current.name}?`,
+      description: 'This stops the current season but does not delete historical data. You can start a new season afterward.',
+      confirmLabel: 'End season',
+      variant: 'danger',
+    });
 
     if (!ok) return;
 

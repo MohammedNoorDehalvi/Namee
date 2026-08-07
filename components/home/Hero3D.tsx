@@ -1,9 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
-import { useRef } from 'react';
-import { ArrowUpRight, Gavel, Radio, Shield, Trophy, Users, Zap } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowUpRight, Gavel, Lock, Radio, Shield, Trophy, Users, Zap } from 'lucide-react';
 import {
   motion,
   useReducedMotion,
@@ -19,10 +18,18 @@ import { RetroGrid } from '@/components/ui/RetroGrid';
 import { ShimmerButton } from '@/components/ui/ShimmerButton';
 import { OrbitingCircles } from '@/components/ui/OrbitingCircles';
 import { Meteors } from '@/components/ui/Meteors';
+import { useCurrentSeason } from '@/hooks/useCurrentSeason';
 
 const SplineRobotScene = dynamic(
   () => import('@/components/home/SplineRobotScene').then((m) => m.SplineRobotScene),
-  { ssr: false, loading: () => <div className="w-full h-full min-h-[380px]" /> },
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full min-h-[380px] w-full items-center justify-center rounded-3xl border border-white/10 bg-slate-950/40">
+        <div className="h-12 w-12 animate-pulse rounded-full border-2 border-amber-400/30 border-t-amber-400" />
+      </div>
+    ),
+  },
 );
 
 /* ── Animation constants ──────────────────────────── */
@@ -37,7 +44,10 @@ const HEADLINE_WORDS = [
 
 export function Hero3D() {
   const sectionRef = useRef<HTMLElement>(null);
+  const splineHostRef = useRef<HTMLDivElement>(null);
+  const [loadSpline, setLoadSpline] = useState(false);
   const reduceMotion = useReducedMotion();
+  const { displayName } = useCurrentSeason();
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -47,26 +57,48 @@ export function Hero3D() {
   const titleY = useTransform(scrollYProgress, [0, 0.9], ['0%', reduceMotion ? '0%' : '15%']);
   const titleOpacity = useTransform(scrollYProgress, [0, 0.7], [1, 0.1]);
 
+  useEffect(() => {
+    if (reduceMotion) return;
+    const el = splineHostRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setLoadSpline(true);
+          obs.disconnect();
+        }
+      },
+      { rootMargin: '120px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [reduceMotion]);
+
+  const particleDensity = reduceMotion ? 0 : 28;
+  const meteorCount = reduceMotion ? 0 : 8;
+
   return (
     <section ref={sectionRef} className="relative min-h-screen pt-28 pb-16 flex flex-col justify-between overflow-hidden bg-transparent">
       {/* 21st.dev Retro Grid Background */}
       <RetroGrid angle={60} className="z-0 opacity-40" />
 
-      {/* 21st.dev Background Meteors Effect */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <Meteors number={18} />
-      </div>
+      {!reduceMotion && meteorCount > 0 && (
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <Meteors number={meteorCount} />
+        </div>
+      )}
 
-      {/* Background Sparkles Effect */}
-      <div className="absolute inset-0 z-0 opacity-60 pointer-events-none">
-        <SparklesCore
-          background="transparent"
-          minSize={0.6}
-          maxSize={2.2}
-          particleDensity={70}
-          particleColor="#F59E0B"
-        />
-      </div>
+      {!reduceMotion && particleDensity > 0 && (
+        <div className="absolute inset-0 z-0 opacity-50 pointer-events-none">
+          <SparklesCore
+            background="transparent"
+            minSize={0.6}
+            maxSize={2}
+            particleDensity={particleDensity}
+            particleColor="#F59E0B"
+          />
+        </div>
+      )}
 
       {/* Ambient Radial Lights */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[700px] bg-gradient-to-tr from-cyan-500/20 via-amber-500/20 to-violet-500/20 blur-[160px] rounded-full pointer-events-none" />
@@ -86,7 +118,9 @@ export function Hero3D() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
                 </span>
-                <span>APL SEASON 8 · DIGITAL CRICKET AUCTION</span>
+                <span className="uppercase tracking-widest">
+                  {displayName} · Digital cricket auction
+                </span>
               </div>
             </GlassEffect>
           </motion.div>
@@ -104,7 +138,11 @@ export function Hero3D() {
             className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold font-display tracking-tight text-white leading-[1.08]"
           >
             THE{' '}
-            <FlipWords words={HEADLINE_WORDS} className="text-gradient-gold" />
+            {reduceMotion ? (
+              <span className="text-gradient-gold">LIVE DIGITAL</span>
+            ) : (
+              <FlipWords words={HEADLINE_WORDS} className="text-gradient-gold" />
+            )}
             <br />
             <span className="text-gradient-cyan">CRICKET AUCTION</span>
           </motion.h1>
@@ -118,45 +156,70 @@ export function Hero3D() {
             Real-time bidding, protected team purses, and the high-stakes drama of building a championship squad — all in one arena.
           </motion.p>
 
-          {/* 21st.dev ShimmerButton CTA Actions */}
+          {/* Primary decision row */}
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.9, ease: EASE_OUT_EXPO, delay: 0.45 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-5 pt-4"
+            className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4"
           >
-            <ShimmerButton href="/player-registration" shimmerColor="#F59E0B" className="px-8 py-4">
-              <span>Enter Player Draft</span>
-              <ArrowUpRight className="w-5 h-5 text-amber-300" />
+            <ShimmerButton href="/auction" shimmerColor="#10B981" className="px-7 py-3.5">
+              <Radio className="w-5 h-5 text-emerald-400" />
+              <span>Watch live</span>
             </ShimmerButton>
 
-            <ShimmerButton href="/auction" shimmerColor="#10B981" className="px-8 py-4">
-              <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
-              <span>Watch Live Bidding</span>
+            <ShimmerButton href="/captain-login" shimmerColor="#F59E0B" className="px-7 py-3.5">
+              <Lock className="w-5 h-5 text-amber-300" />
+              <span>Captain login</span>
+            </ShimmerButton>
+
+            <ShimmerButton href="/player-registration" shimmerColor="#22D3EE" className="px-7 py-3.5">
+              <span>Register player</span>
+              <ArrowUpRight className="w-5 h-5 text-cyan-300" />
             </ShimmerButton>
           </motion.div>
         </motion.div>
 
-        {/* 3D Robot Spline Scene with 21st.dev Orbiting Circles */}
-        <div className="relative w-full max-w-5xl mx-auto h-[380px] sm:h-[480px] md:h-[540px] my-8 flex items-center justify-center overflow-hidden">
-          <SplineRobotScene />
+        {/* 3D Robot — lazy when in view; static placeholder if reduced motion */}
+        <div
+          ref={splineHostRef}
+          className="relative w-full max-w-5xl mx-auto h-[380px] sm:h-[480px] md:h-[540px] my-8 flex items-center justify-center overflow-hidden"
+        >
+          {reduceMotion ? (
+            <div className="flex h-full w-full items-center justify-center rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 to-slate-950/90">
+              <div className="text-center space-y-2 px-6">
+                <Trophy className="mx-auto h-10 w-10 text-amber-300" />
+                <p className="text-sm font-bold text-white">{displayName}</p>
+                <p className="text-xs text-slate-400">3D scene paused for reduced motion</p>
+              </div>
+            </div>
+          ) : loadSpline ? (
+            <SplineRobotScene />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center rounded-3xl border border-white/10 bg-slate-950/50">
+              <div className="h-12 w-12 animate-pulse rounded-full border-2 border-amber-400/30 border-t-amber-400" />
+            </div>
+          )}
 
-          {/* Orbiting Circles Badges */}
-          <OrbitingCircles radius={180} duration={25} delay={0}>
-            <div className="w-8 h-8 rounded-full bg-slate-900 border border-amber-400/50 flex items-center justify-center text-amber-300 shadow-lg">
-              <Trophy className="w-4 h-4" />
-            </div>
-          </OrbitingCircles>
-          <OrbitingCircles radius={180} duration={25} delay={12}>
-            <div className="w-8 h-8 rounded-full bg-slate-900 border border-cyan-400/50 flex items-center justify-center text-cyan-300 shadow-lg">
-              <Zap className="w-4 h-4" />
-            </div>
-          </OrbitingCircles>
-          <OrbitingCircles radius={280} duration={35} reverse delay={5}>
-            <div className="w-8 h-8 rounded-full bg-slate-900 border border-emerald-400/50 flex items-center justify-center text-emerald-300 shadow-lg">
-              <Shield className="w-4 h-4" />
-            </div>
-          </OrbitingCircles>
+          {!reduceMotion && (
+            <>
+              <OrbitingCircles radius={180} duration={25} delay={0}>
+                <div className="w-8 h-8 rounded-full bg-slate-900 border border-amber-400/50 flex items-center justify-center text-amber-300 shadow-lg">
+                  <Trophy className="w-4 h-4" />
+                </div>
+              </OrbitingCircles>
+              <OrbitingCircles radius={180} duration={25} delay={12}>
+                <div className="w-8 h-8 rounded-full bg-slate-900 border border-cyan-400/50 flex items-center justify-center text-cyan-300 shadow-lg">
+                  <Zap className="w-4 h-4" />
+                </div>
+              </OrbitingCircles>
+              <OrbitingCircles radius={280} duration={35} reverse delay={5}>
+                <div className="w-8 h-8 rounded-full bg-slate-900 border border-emerald-400/50 flex items-center justify-center text-emerald-300 shadow-lg">
+                  <Shield className="w-4 h-4" />
+                </div>
+              </OrbitingCircles>
+            </>
+          )}
         </div>
 
         {/* Live Stats Ticker Bar with 21st.dev AnimatedNumbers */}

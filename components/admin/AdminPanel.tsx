@@ -31,6 +31,22 @@ import { compressImageFile, fileSizeLabel } from '@/lib/image-client';
 import { toast } from '@/components/ui/AppToaster';
 import { confirmAction, promptAction } from '@/components/ui/ConfirmDialog';
 import { AdminSkeleton } from '@/components/ui/AuctionSkeleton';
+import { AuctionStatusBadge } from '@/components/ui/StatusBadge';
+import { useBidLock } from '@/hooks/useBidLock';
+import { AdminChooseNextPlayerPanel } from '@/components/admin/AdminChooseNextPlayerPanel';
+import { SeasonManagementPanel } from '@/components/season/SeasonManagementPanel';
+import { CoachMarks } from '@/components/ui/CoachMarks';
+
+type AdminTab = 'live' | 'approvals' | 'teams' | 'manual' | 'reports' | 'seasons';
+
+const ADMIN_TABS: { id: AdminTab; label: string }[] = [
+  { id: 'live', label: 'Live' },
+  { id: 'approvals', label: 'Approvals' },
+  { id: 'teams', label: 'Teams' },
+  { id: 'manual', label: 'Manual fix' },
+  { id: 'reports', label: 'Reports' },
+  { id: 'seasons', label: 'Seasons' },
+];
 
 type Overview = {
   players: Player[];
@@ -86,11 +102,13 @@ export function AdminPanel() {
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<AdminTab>('live');
   const [manual, setManual] = useState({ player_id: '', team_id: '', price: '' });
   const [teamForm, setTeamForm] = useState(emptyTeamForm);
   const [teamLogoFile, setTeamLogoFile] = useState<File | null>(null);
   const [captainPhotoFile, setCaptainPhotoFile] = useState<File | null>(null);
   const [editingPlayers, setEditingPlayers] = useState<Record<string, PlayerEdit>>({});
+  const bidLocked = useBidLock(500);
 
   async function api<T = unknown>(path: string, options: RequestInit = {}) {
     const session = readSession();
@@ -394,9 +412,42 @@ export function AdminPanel() {
     ) || [];
   const unsoldPlayers = data?.players.filter((player) => player.auction_status === 'UNSOLD' || player.status === 'Unsold') || [];
   const canStart = Boolean(data && data.teams.length >= 4 && data.captains.length >= 4 && approvedPending.length > 0);
-  const soldDisabled = !currentPlayer || !data?.auction?.highest_bidder_id;
+  const soldDisabled = !currentPlayer || !data?.auction?.highest_bidder_id || bidLocked;
   const unsoldDisabled = !currentPlayer || Boolean(data?.auction?.highest_bidder_id);
   const showManualPicker = Boolean(data?.auction?.auction_status === 'LIVE' && !data.auction.manual_picker_hidden && !currentPlayer);
+
+  // Keyboard shortcuts on Live tab (skip when typing in inputs)
+  useEffect(() => {
+    if (!data || tab !== 'live') return;
+
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || target?.isContentEditable) return;
+      if (busy) return;
+
+      const key = event.key.toLowerCase();
+      if (key === 's' && !soldDisabled) {
+        event.preventDefault();
+        void sold();
+      } else if (key === 'u' && !unsoldDisabled) {
+        event.preventDefault();
+        void unsold();
+      } else if (key === 'n') {
+        event.preventDefault();
+        void nextRandom();
+      } else if (event.code === 'Space') {
+        event.preventDefault();
+        const st = data.auction?.auction_status;
+        if (st === 'LIVE') void status('pause');
+        else if (st === 'PAUSED') void status('resume');
+      }
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, tab, busy, soldDisabled, unsoldDisabled]);
 
   if (loading) {
     return <AdminSkeleton />;
@@ -417,48 +468,344 @@ export function AdminPanel() {
   }
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 text-white sm:px-6 lg:px-8">
-      <section className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.09] to-apl-green/10 p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-        <span className="inline-flex rounded-full border border-apl-gold/25 bg-apl-gold/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-apl-gold">
-          Admin Control
-        </span>
-        <h1 className="mt-4 text-4xl font-black tracking-tight md:text-6xl">APL Auction Command Center</h1>
-        <p className="mt-2 text-sm text-white/60">
-          Status: {data.auction?.auction_status || 'NOT_STARTED'} • Teams: {data.teams.length} • Captains: {data.captains.length}
-        </p>
-        <button onClick={() => void load()} className="btn-ghost mt-5 w-full" disabled={busy}>
-          <RefreshCw className="h-4 w-4" /> Refresh
-        </button>
+    <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-4 text-white sm:px-6 lg:px-8">
+      <CoachMarks
+        scope="admin"
+        tips={[
+          {
+            id: 'live-ops',
+            title: 'Live tab is your hammer',
+            body: 'Sold, Unsold, Next, and Pause live in the sticky bar at the top — stay on Live during auction day.',
+          },
+          {
+            id: 'shortcuts',
+            title: 'Keyboard shortcuts',
+            body: 'On Live: S = sold, U = unsold, N = next, Space = pause/resume. Confirms still protect destructive actions.',
+          },
+          {
+            id: 'bid-lock',
+            title: 'Bid lock is automatic',
+            body: 'While a captain bid is processing, Sold stays locked and a banner appears. No DOM hacks required.',
+          },
+        ]}
+      />
 
-        {!canStart && data.auction?.auction_status === 'NOT_STARTED' && (
-          <div className="mt-4 flex gap-3 rounded-2xl border border-amber-300/20 bg-amber-300/10 p-4 text-sm text-amber-100">
-            <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
-            <span>Need at least 4 teams, 4 captains, one captain per team, and approved players before starting auction.</span>
+      {/* Sticky Live Ops bar */}
+      <div className="sticky top-[4.5rem] z-30 -mx-1 space-y-3 rounded-[1.5rem] border border-white/10 bg-slate-950/95 p-3 shadow-2xl backdrop-blur-xl sm:top-[4.75rem] sm:p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+            <AuctionStatusBadge status={data.auction?.auction_status || 'NOT_STARTED'} />
+            <span className="truncate text-sm font-bold text-white">
+              {currentPlayer ? currentPlayer.name : 'No lot selected'}
+            </span>
+            {currentPlayer && (
+              <span className="text-xs font-semibold text-amber-300">
+                {formatMoney(data.auction?.highest_bid || currentPlayer.current_bid || currentPlayer.base_price)}
+                {data.auction?.highest_team_name ? ` · ${data.auction.highest_team_name}` : ''}
+              </span>
+            )}
+            {bidLocked && (
+              <span className="rounded-full border border-amber-400/40 bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-200">
+                Bid lock
+              </span>
+            )}
           </div>
-        )}
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          <button disabled={!canStart || busy} onClick={() => void status('start')} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">
-            <Play className="h-4 w-4" /> Start Auction
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy || soldDisabled}
+              onClick={() => void sold()}
+              className="btn-primary px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-45"
+              title="Shortcut: S"
+            >
+              <CheckCircle2 className="h-4 w-4" /> Sold
+            </button>
+            <button
+              type="button"
+              disabled={busy || unsoldDisabled}
+              onClick={() => void unsold()}
+              className="btn-ghost px-3 py-2 text-xs disabled:opacity-45"
+              title="Shortcut: U"
+            >
+              <XCircle className="h-4 w-4" /> Unsold
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void nextRandom()}
+              className="btn-ghost px-3 py-2 text-xs disabled:opacity-45"
+              title="Shortcut: N"
+            >
+              <Shuffle className="h-4 w-4" /> Next
+            </button>
+            <button
+              type="button"
+              disabled={busy || data.auction?.auction_status !== 'LIVE'}
+              onClick={() => void status('pause')}
+              className="btn-ghost px-3 py-2 text-xs disabled:opacity-45"
+              title="Shortcut: Space"
+            >
+              <Pause className="h-4 w-4" /> Pause
+            </button>
+            <button
+              type="button"
+              disabled={busy || data.auction?.auction_status !== 'PAUSED'}
+              onClick={() => void status('resume')}
+              className="btn-ghost px-3 py-2 text-xs disabled:opacity-45"
+              title="Shortcut: Space"
+            >
+              <Play className="h-4 w-4" /> Resume
+            </button>
+            <button type="button" disabled={busy} onClick={() => void load()} className="btn-ghost px-3 py-2 text-xs disabled:opacity-45">
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex gap-1 overflow-x-auto pb-0.5" role="tablist" aria-label="Admin sections">
+          {ADMIN_TABS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === item.id}
+              onClick={() => setTab(item.id)}
+              className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${
+                tab === item.id
+                  ? 'bg-amber-400 text-slate-950'
+                  : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              {item.label}
+              {item.id === 'approvals' && pendingPlayers.length > 0 ? ` (${pendingPlayers.length})` : ''}
+            </button>
+          ))}
+        </div>
+        <p className="hidden text-[10px] text-white/40 sm:block">
+          Shortcuts on Live: S sold · U unsold · N next · Space pause/resume
+        </p>
+      </div>
+
+      {/* Setup header — only on teams/live when not started */}
+      {(tab === 'live' || tab === 'teams') && (
+        <section className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.09] to-apl-green/10 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <span className="inline-flex rounded-full border border-apl-gold/25 bg-apl-gold/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-apl-gold">
+                Command center
+              </span>
+              <h1 className="mt-3 text-3xl font-black tracking-tight md:text-5xl">APL Auction Control</h1>
+              <p className="mt-2 text-sm text-white/60">
+                Teams: {data.teams.length} · Captains: {data.captains.length} · Pending: {pendingPlayers.length}
+              </p>
+            </div>
+          </div>
+
+          {!canStart && data.auction?.auction_status === 'NOT_STARTED' && (
+            <div className="mt-4 flex gap-3 rounded-2xl border border-amber-300/20 bg-amber-300/10 p-4 text-sm text-amber-100">
+              <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
+              <span>Need at least 4 teams, 4 captains, one captain per team, and approved players before starting.</span>
+            </div>
+          )}
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button disabled={!canStart || busy} onClick={() => void status('start')} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+              <Play className="h-4 w-4" /> Start auction
+            </button>
+            <button disabled={busy} onClick={() => void status('end')} className="btn-ghost disabled:opacity-50">
+              <Trophy className="h-4 w-4" /> End
+            </button>
+            <button disabled={busy} onClick={() => void status('reset')} className="btn-ghost disabled:opacity-50">
+              <RotateCcw className="h-4 w-4" /> Reset
+            </button>
+            <button disabled={busy} onClick={() => void undo()} className="btn-ghost disabled:opacity-50">
+              Undo last
+            </button>
+          </div>
+        </section>
+      )}
+
+      {tab === 'live' && (
+        <div className="flex flex-col gap-5">
+          <AdminChooseNextPlayerPanel />
+
+      {showManualPicker && (
+        <ReportCard title="Select First Player" icon={<UserPlus className="h-5 w-5 text-apl-gold" />}>
+          <p className="mb-3 text-sm text-white/50">This panel hides after the first player is selected.</p>
+          {approvedPending.length === 0 ? (
+            <MiniEmpty title="No approved players" />
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {approvedPending.map((player) => (
+                <button
+                  key={player.id}
+                  disabled={busy}
+                  onClick={() => void selectPlayer(player.id)}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-left hover:border-apl-gold/50 disabled:opacity-50"
+                >
+                  <p className="font-bold">{player.name}</p>
+                  <p className="text-sm text-white/50">
+                    {player.role} • Base {formatMoney(player.base_price)}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </ReportCard>
+      )}
+
+      <ReportCard title="Current Player Control" icon={<Gavel className="h-5 w-5 text-apl-gold" />}>
+        {currentPlayer ? (
+          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
+            <p className="text-xs font-bold uppercase tracking-wide text-apl-gold">{currentPlayer.auction_status}</p>
+            <h3 className="mt-1 text-3xl font-black">{currentPlayer.name}</h3>
+            <p className="text-white/60">
+              {currentPlayer.role} • {currentPlayer.batting_style} • {currentPlayer.bowling_style}
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <MiniStat label="Current bid" value={formatMoney(data.auction?.highest_bid || currentPlayer.current_bid || currentPlayer.base_price)} />
+              <MiniStat label="Highest bidder" value={data.auction?.highest_team_name || 'No bid yet'} />
+              <MiniStat label="Base price" value={formatMoney(currentPlayer.base_price)} />
+            </div>
+          </div>
+        ) : (
+          <MiniEmpty title="No current player selected" description="Select the first player or press next random." />
+        )}
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <button disabled={busy || soldDisabled} onClick={() => void sold()} className="btn-primary disabled:cursor-not-allowed disabled:grayscale disabled:opacity-45">
+            <CheckCircle2 className="h-4 w-4" /> Sold to current bidder
           </button>
-          <button disabled={busy} onClick={() => void status('pause')} className="btn-ghost disabled:opacity-50">
-            <Pause className="h-4 w-4" /> Pause
+          <button disabled={busy || unsoldDisabled} onClick={() => void unsold()} className="btn-ghost disabled:cursor-not-allowed disabled:opacity-45">
+            <XCircle className="h-4 w-4" /> Unsold
           </button>
-          <button disabled={busy} onClick={() => void status('resume')} className="btn-ghost disabled:opacity-50">
-            <Play className="h-4 w-4" /> Resume
-          </button>
-          <button disabled={busy} onClick={() => void status('end')} className="btn-ghost disabled:opacity-50">
-            <Trophy className="h-4 w-4" /> End
-          </button>
-          <button disabled={busy} onClick={() => void status('reset')} className="btn-ghost disabled:opacity-50">
-            <RotateCcw className="h-4 w-4" /> Reset
-          </button>
-          <button disabled={busy} onClick={() => void undo()} className="btn-ghost disabled:opacity-50">
-            Undo Last Action
+          <button disabled={busy} onClick={() => void nextRandom()} className="btn-ghost disabled:cursor-not-allowed disabled:opacity-45">
+            <Shuffle className="h-4 w-4" /> Next player random
           </button>
         </div>
-      </section>
+        {bidLocked && (
+          <p className="mt-3 text-center text-xs text-amber-200/80">Sold is locked while a captain bid is processing.</p>
+        )}
+      </ReportCard>
 
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ReportCard title="Bid History" icon={<Gavel className="h-5 w-5 text-apl-gold" />}>
+          {data.bids.length === 0 ? (
+            <MiniEmpty title="No bids yet" />
+          ) : (
+            <div className="space-y-2">
+              {data.bids.slice(0, 10).map((bid) => (
+                <div key={bid.id} className="flex items-center justify-between rounded-2xl bg-white/[0.04] px-4 py-3">
+                  <span>{bid.team_name}</span>
+                  <b>{formatMoney(bid.bid_amount)}</b>
+                </div>
+              ))}
+            </div>
+          )}
+        </ReportCard>
+
+        <ReportCard title="Unsold Players" icon={<Users className="h-5 w-5 text-apl-green" />}>
+          {unsoldPlayers.length === 0 ? (
+            <MiniEmpty title="No unsold players yet" />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {unsoldPlayers.map((player) => (
+                <span key={player.id} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-sm">
+                  {player.name}
+                </span>
+              ))}
+            </div>
+          )}
+        </ReportCard>
+      </div>
+
+      <ReportCard title="Live Events" icon={<AlertTriangle className="h-5 w-5 text-apl-green" />}>
+        {data.events.length === 0 ? (
+          <MiniEmpty title="No events yet" />
+        ) : (
+          <div className="space-y-2">
+            {data.events.slice(0, 8).map((event) => (
+              <div key={event.id} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/70">
+                {event.message}
+              </div>
+            ))}
+          </div>
+        )}
+      </ReportCard>
+        </div>
+      )}
+
+      {tab === 'approvals' && (
+      <ReportCard title="Pending Player Requests" icon={<ShieldCheck className="h-5 w-5 text-apl-gold" />}>
+        {pendingPlayers.length === 0 ? (
+          <MiniEmpty title="No pending players" description="New registrations will appear here for approve, approve/edit, or reject." />
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {pendingPlayers.map((player) => {
+              const edit = editingPlayers[player.id] || makePlayerEdit(player);
+              return (
+                <div key={player.id} className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="flex gap-4">
+                    {player.photo_url ? (
+                      <img src={player.photo_url} alt={player.name} className="h-20 w-20 rounded-2xl object-cover" />
+                    ) : (
+                      <div className="grid h-20 w-20 place-items-center rounded-2xl bg-white/10 text-xs text-white/45">No photo</div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xl font-black">{player.name}</p>
+                      <p className="text-sm text-white/50">{player.phone}</p>
+                      <p className="mt-1 text-xs text-white/45">
+                        {player.role} • {player.batting_style} • {player.bowling_style}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <input className={inputClass} value={edit.name} onChange={(event) => setEditingPlayers({ ...editingPlayers, [player.id]: { ...edit, name: event.target.value } })} placeholder="Player name" />
+                    <input className={inputClass} value={edit.phone} onChange={(event) => setEditingPlayers({ ...editingPlayers, [player.id]: { ...edit, phone: event.target.value } })} placeholder="Phone" />
+                    <select className={selectClass} value={edit.role} onChange={(event) => setEditingPlayers({ ...editingPlayers, [player.id]: { ...edit, role: event.target.value } })}>
+                      <option>Batter</option>
+                      <option>Bowler</option>
+                      <option>All-rounder</option>
+                      <option>Wicketkeeper</option>
+                    </select>
+                    <input className={inputClass} type="number" min="1" value={edit.base_price} onChange={(event) => setEditingPlayers({ ...editingPlayers, [player.id]: { ...edit, base_price: event.target.value } })} placeholder="Base price" />
+                    <select className={selectClass} value={edit.batting_style} onChange={(event) => setEditingPlayers({ ...editingPlayers, [player.id]: { ...edit, batting_style: event.target.value } })}>
+                      <option>Right Hand</option>
+                      <option>Left Hand</option>
+                    </select>
+                    <select className={selectClass} value={edit.bowling_style} onChange={(event) => setEditingPlayers({ ...editingPlayers, [player.id]: { ...edit, bowling_style: event.target.value } })}>
+                      <option>Fast</option>
+                      <option>Medium</option>
+                      <option>Spin</option>
+                      <option>None</option>
+                    </select>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button disabled={busy} onClick={() => void playerAction(player, 'approve')} className="btn-primary disabled:opacity-50">
+                      <CheckCircle2 className="h-4 w-4" /> Approve
+                    </button>
+                    <button disabled={busy} onClick={() => void playerAction(player, 'approve-update')} className="btn-ghost disabled:opacity-50">
+                      <Edit3 className="h-4 w-4" /> Approve & Edit
+                    </button>
+                    <button disabled={busy} onClick={() => void playerAction(player, 'update')} className="btn-ghost disabled:opacity-50">
+                      <Save className="h-4 w-4" /> Save Only
+                    </button>
+                    <button disabled={busy} onClick={() => void playerAction(player, 'reject')} className="btn-ghost text-red-200 disabled:opacity-50">
+                      <XCircle className="h-4 w-4" /> Reject
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </ReportCard>
+      )}
+
+      {tab === 'teams' && (
+        <div className="flex flex-col gap-5">
       <ReportCard title="Add Team + Captain Login" icon={<UserPlus className="h-5 w-5 text-apl-gold" />}>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
           <label className="space-y-2">
@@ -540,189 +887,10 @@ export function AdminPanel() {
 
         <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-white/60">
-            Password is hashed on the server with bcrypt before storing in Supabase. The plain password is only visible here before saving.
+            Password is hashed on the server with bcrypt before storing. Plain password is only visible here before saving.
           </p>
           <button disabled={busy} onClick={() => void addTeamCaptain()} className="btn-primary shrink-0 disabled:opacity-50">
             <PlusCircle className="h-4 w-4" /> Add Team + Captain
-          </button>
-        </div>
-      </ReportCard>
-
-      <ReportCard title="Pending Player Requests" icon={<ShieldCheck className="h-5 w-5 text-apl-gold" />}>
-        {pendingPlayers.length === 0 ? (
-          <MiniEmpty title="No pending players" description="New registrations will appear here for approve, approve/edit, or reject." />
-        ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {pendingPlayers.map((player) => {
-              const edit = editingPlayers[player.id] || makePlayerEdit(player);
-              return (
-                <div key={player.id} className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                  <div className="flex gap-4">
-                    {player.photo_url ? (
-                      <img src={player.photo_url} alt={player.name} className="h-20 w-20 rounded-2xl object-cover" />
-                    ) : (
-                      <div className="grid h-20 w-20 place-items-center rounded-2xl bg-white/10 text-xs text-white/45">No photo</div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xl font-black">{player.name}</p>
-                      <p className="text-sm text-white/50">{player.phone}</p>
-                      <p className="mt-1 text-xs text-white/45">
-                        {player.role} • {player.batting_style} • {player.bowling_style}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <input className={inputClass} value={edit.name} onChange={(event) => setEditingPlayers({ ...editingPlayers, [player.id]: { ...edit, name: event.target.value } })} placeholder="Player name" />
-                    <input className={inputClass} value={edit.phone} onChange={(event) => setEditingPlayers({ ...editingPlayers, [player.id]: { ...edit, phone: event.target.value } })} placeholder="Phone" />
-                    <select className={selectClass} value={edit.role} onChange={(event) => setEditingPlayers({ ...editingPlayers, [player.id]: { ...edit, role: event.target.value } })}>
-                      <option>Batter</option>
-                      <option>Bowler</option>
-                      <option>All-rounder</option>
-                      <option>Wicketkeeper</option>
-                    </select>
-                    <input className={inputClass} type="number" min="1" value={edit.base_price} onChange={(event) => setEditingPlayers({ ...editingPlayers, [player.id]: { ...edit, base_price: event.target.value } })} placeholder="Base price" />
-                    <select className={selectClass} value={edit.batting_style} onChange={(event) => setEditingPlayers({ ...editingPlayers, [player.id]: { ...edit, batting_style: event.target.value } })}>
-                      <option>Right Hand</option>
-                      <option>Left Hand</option>
-                    </select>
-                    <select className={selectClass} value={edit.bowling_style} onChange={(event) => setEditingPlayers({ ...editingPlayers, [player.id]: { ...edit, bowling_style: event.target.value } })}>
-                      <option>Fast</option>
-                      <option>Medium</option>
-                      <option>Spin</option>
-                      <option>None</option>
-                    </select>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button disabled={busy} onClick={() => void playerAction(player, 'approve')} className="btn-primary disabled:opacity-50">
-                      <CheckCircle2 className="h-4 w-4" /> Approve
-                    </button>
-                    <button disabled={busy} onClick={() => void playerAction(player, 'approve-update')} className="btn-ghost disabled:opacity-50">
-                      <Edit3 className="h-4 w-4" /> Approve & Edit
-                    </button>
-                    <button disabled={busy} onClick={() => void playerAction(player, 'update')} className="btn-ghost disabled:opacity-50">
-                      <Save className="h-4 w-4" /> Save Only
-                    </button>
-                    <button disabled={busy} onClick={() => void playerAction(player, 'reject')} className="btn-ghost text-red-200 disabled:opacity-50">
-                      <XCircle className="h-4 w-4" /> Reject
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </ReportCard>
-
-      {showManualPicker && (
-        <ReportCard title="Select First Player" icon={<UserPlus className="h-5 w-5 text-apl-gold" />}>
-          <p className="mb-3 text-sm text-white/50">This sidebar hides after the first player is selected.</p>
-          {approvedPending.length === 0 ? (
-            <MiniEmpty title="No approved players" />
-          ) : (
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {approvedPending.map((player) => (
-                <button
-                  key={player.id}
-                  disabled={busy}
-                  onClick={() => void selectPlayer(player.id)}
-                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-left hover:border-apl-gold/50 disabled:opacity-50"
-                >
-                  <p className="font-bold">{player.name}</p>
-                  <p className="text-sm text-white/50">
-                    {player.role} • Base {formatMoney(player.base_price)}
-                  </p>
-                </button>
-              ))}
-            </div>
-          )}
-        </ReportCard>
-      )}
-
-      <ReportCard title="Current Player Control" icon={<Gavel className="h-5 w-5 text-apl-gold" />}>
-        {currentPlayer ? (
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
-            <p className="text-xs font-bold uppercase tracking-wide text-apl-gold">{currentPlayer.auction_status}</p>
-            <h3 className="mt-1 text-3xl font-black">{currentPlayer.name}</h3>
-            <p className="text-white/60">
-              {currentPlayer.role} • {currentPlayer.batting_style} • {currentPlayer.bowling_style}
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <MiniStat label="Current bid" value={formatMoney(data.auction?.highest_bid || currentPlayer.current_bid || currentPlayer.base_price)} />
-              <MiniStat label="Highest bidder" value={data.auction?.highest_team_name || 'No bid yet'} />
-              <MiniStat label="Base price" value={formatMoney(currentPlayer.base_price)} />
-            </div>
-          </div>
-        ) : (
-          <MiniEmpty title="No current player selected" description="Select the first player or press next random." />
-        )}
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          <button disabled={busy || soldDisabled} onClick={() => void sold()} className="btn-primary disabled:cursor-not-allowed disabled:grayscale disabled:opacity-45">
-            <CheckCircle2 className="h-4 w-4" /> Sold to Current Bidder
-          </button>
-          <button disabled={busy || unsoldDisabled} onClick={() => void unsold()} className="btn-ghost disabled:cursor-not-allowed disabled:opacity-45">
-            <XCircle className="h-4 w-4" /> Unsold
-          </button>
-          <button disabled={busy} onClick={() => void nextRandom()} className="btn-ghost disabled:cursor-not-allowed disabled:opacity-45">
-            <Shuffle className="h-4 w-4" /> Next Player Random
-          </button>
-        </div>
-      </ReportCard>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ReportCard title="Bid History" icon={<Gavel className="h-5 w-5 text-apl-gold" />}>
-          {data.bids.length === 0 ? (
-            <MiniEmpty title="No bids yet" />
-          ) : (
-            <div className="space-y-2">
-              {data.bids.slice(0, 10).map((bid) => (
-                <div key={bid.id} className="flex items-center justify-between rounded-2xl bg-white/[0.04] px-4 py-3">
-                  <span>{bid.team_name}</span>
-                  <b>{formatMoney(bid.bid_amount)}</b>
-                </div>
-              ))}
-            </div>
-          )}
-        </ReportCard>
-
-        <ReportCard title="Unsold Players" icon={<Users className="h-5 w-5 text-apl-green" />}>
-          {unsoldPlayers.length === 0 ? (
-            <MiniEmpty title="No unsold players yet" />
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {unsoldPlayers.map((player) => (
-                <span key={player.id} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-sm">
-                  {player.name}
-                </span>
-              ))}
-            </div>
-          )}
-        </ReportCard>
-      </div>
-
-      <ReportCard title="Manual Team Fixes" icon={<UserPlus className="h-5 w-5 text-apl-gold" />}>
-        <p className="mb-4 text-sm text-white/50">Assign unsold player, remove player from team, or edit sold price.</p>
-        <div className="grid gap-3 md:grid-cols-[1fr_1fr_140px_auto]">
-          <select className={selectClass} value={manual.player_id} onChange={(event) => setManual({ ...manual, player_id: event.target.value })}>
-            <option value="">Choose unsold/available player</option>
-            {[...unsoldPlayers, ...approvedPending].map((player) => (
-              <option key={player.id} value={player.id}>
-                {player.name}
-              </option>
-            ))}
-          </select>
-          <select className={selectClass} value={manual.team_id} onChange={(event) => setManual({ ...manual, team_id: event.target.value })}>
-            <option value="">Choose team</option>
-            {data.teams.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.team_name}
-              </option>
-            ))}
-          </select>
-          <input className={inputClass} value={manual.price} onChange={(event) => setManual({ ...manual, price: event.target.value })} type="number" min="0" placeholder="Price" />
-          <button disabled={busy} onClick={() => void manualAssign()} className="btn-primary disabled:opacity-50">
-            Assign
           </button>
         </div>
       </ReportCard>
@@ -761,10 +929,10 @@ export function AdminPanel() {
                       <div key={player.id} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-black/20 px-3 py-2 text-sm">
                         <span>{player.name}</span>
                         <span className="font-bold text-apl-gold">{formatMoney(player.sold_price)}</span>
-                        <button onClick={() => void editPrice(player)} className="text-apl-gold">
+                        <button type="button" onClick={() => void editPrice(player)} className="text-apl-gold">
                           Edit price
                         </button>
-                        <button onClick={() => void removePlayer(player.id)} className="inline-flex items-center gap-1 text-red-200">
+                        <button type="button" onClick={() => void removePlayer(player.id)} className="inline-flex items-center gap-1 text-red-200">
                           <Trash2 className="h-3 w-3" /> Remove
                         </button>
                       </div>
@@ -776,7 +944,38 @@ export function AdminPanel() {
           </div>
         )}
       </ReportCard>
+        </div>
+      )}
 
+      {tab === 'manual' && (
+      <ReportCard title="Manual Team Fixes" icon={<UserPlus className="h-5 w-5 text-apl-gold" />}>
+        <p className="mb-4 text-sm text-white/50">Assign unsold player, remove player from team, or edit sold price.</p>
+        <div className="grid gap-3 md:grid-cols-[1fr_1fr_140px_auto]">
+          <select className={selectClass} value={manual.player_id} onChange={(event) => setManual({ ...manual, player_id: event.target.value })}>
+            <option value="">Choose unsold/available player</option>
+            {[...unsoldPlayers, ...approvedPending].map((player) => (
+              <option key={player.id} value={player.id}>
+                {player.name}
+              </option>
+            ))}
+          </select>
+          <select className={selectClass} value={manual.team_id} onChange={(event) => setManual({ ...manual, team_id: event.target.value })}>
+            <option value="">Choose team</option>
+            {data.teams.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.team_name}
+              </option>
+            ))}
+          </select>
+          <input className={inputClass} value={manual.price} onChange={(event) => setManual({ ...manual, price: event.target.value })} type="number" min="0" placeholder="Price" />
+          <button disabled={busy} onClick={() => void manualAssign()} className="btn-primary disabled:opacity-50">
+            Assign
+          </button>
+        </div>
+      </ReportCard>
+      )}
+
+      {tab === 'reports' && (
       <ReportCard title="Auction Summary" icon={<Trophy className="h-5 w-5 text-apl-gold" />}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MiniStat label="Approved" value={data.summary.totalApprovedPlayers} />
@@ -789,20 +988,13 @@ export function AdminPanel() {
           <MiniStat label="Rejected" value={rejectedPlayers.length} />
         </div>
       </ReportCard>
+      )}
 
-      <ReportCard title="Live Events" icon={<AlertTriangle className="h-5 w-5 text-apl-green" />}>
-        {data.events.length === 0 ? (
-          <MiniEmpty title="No events yet" />
-        ) : (
-          <div className="space-y-2">
-            {data.events.slice(0, 8).map((event) => (
-              <div key={event.id} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/70">
-                {event.message}
-              </div>
-            ))}
-          </div>
-        )}
-      </ReportCard>
+      {tab === 'seasons' && (
+        <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-1">
+          <SeasonManagementPanel />
+        </div>
+      )}
     </div>
   );
 }

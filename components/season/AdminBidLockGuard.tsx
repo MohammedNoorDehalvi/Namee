@@ -1,53 +1,29 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
+import { useBidLock } from '@/hooks/useBidLock';
 
+/**
+ * Visual banner only — sold button lock is state-driven in AdminPanel via useBidLock.
+ */
 export function AdminBidLockGuard() {
-  const [locked, setLocked] = useState(false);
-
-  async function load() {
-    const { data } = await supabase.from('auction').select('bid_processing,bid_lock_started_at').eq('id', 1).maybeSingle();
-    const processing = Boolean(data?.bid_processing);
-    const started = data?.bid_lock_started_at ? new Date(data.bid_lock_started_at).getTime() : 0;
-    const stale = started ? Date.now() - started > 12_000 : false;
-
-    setLocked(processing && !stale);
-  }
-
-  useEffect(() => {
-    void load();
-
-    const id = window.setInterval(load, 500);
-
-    return () => window.clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    const buttons = Array.from(document.querySelectorAll('button'));
-    const soldButtons = buttons.filter((button) => button.textContent?.toLowerCase().includes('sold to current bidder'));
-
-    soldButtons.forEach((button) => {
-      if (locked) {
-        button.setAttribute('disabled', 'true');
-        button.classList.add('opacity-40', 'grayscale', 'cursor-not-allowed');
-      } else {
-        button.removeAttribute('disabled');
-        button.classList.remove('opacity-40', 'grayscale', 'cursor-not-allowed');
-      }
-    });
-  }, [locked]);
+  const locked = useBidLock(500);
 
   if (!locked) return null;
 
   return (
-    <div className="fixed bottom-5 left-4 right-4 z-50 mx-auto max-w-xl rounded-2xl border border-yellow-300/30 bg-black/90 p-4 text-yellow-100 shadow-2xl backdrop-blur">
+    <div
+      className="fixed bottom-5 left-4 right-4 z-50 mx-auto max-w-xl rounded-2xl border border-amber-300/35 bg-slate-950/95 p-4 text-amber-50 shadow-2xl backdrop-blur-xl"
+      role="status"
+      aria-live="polite"
+    >
       <div className="flex items-center gap-3">
-        <AlertTriangle className="shrink-0 text-yellow-300" />
+        <AlertTriangle className="h-5 w-5 shrink-0 text-amber-300" />
         <div>
-          <p className="font-black">A captain is bidding, please wait...</p>
-          <p className="text-sm text-yellow-100/70">Sold button is locked until the bid is confirmed or safely times out.</p>
+          <p className="font-extrabold text-white">A captain is bidding — please wait</p>
+          <p className="text-sm text-amber-100/70">
+            Sold is locked until the bid confirms or the lock safely times out.
+          </p>
         </div>
       </div>
     </div>

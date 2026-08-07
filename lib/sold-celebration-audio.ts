@@ -8,6 +8,8 @@
  *   0.12s  secondary glass tinkle / reverb tail
  */
 
+import { isSfxMuted } from '@/lib/audio-prefs';
+
 export type SoldSfxVariant = 'classic' | 'epic' | 'minimal' | 'stadium';
 
 type SfxConfig = {
@@ -113,6 +115,7 @@ function playNoiseBurst(
  * failures are swallowed (autoplay policy).
  */
 export function playSoldImpactSounds(variant: SoldSfxVariant = 'classic') {
+  if (isSfxMuted()) return;
   const cfg = VARIANT_SFX[variant] ?? VARIANT_SFX.classic;
   const ctx = getAudioContext();
   if (!ctx) return;
@@ -237,6 +240,7 @@ export function playSoldImpactSounds(variant: SoldSfxVariant = 'classic') {
  * Call at celebration start (delay ≈ IMPACT − 0.35s).
  */
 export function playGavelWhoosh(variant: SoldSfxVariant = 'classic') {
+  if (isSfxMuted()) return;
   if (variant === 'minimal') return;
 
   const ctx = getAudioContext();

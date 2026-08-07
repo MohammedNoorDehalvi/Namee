@@ -42,7 +42,7 @@ const journeys = [
 ];
 
 const MARQUEE_ITEMS_1 = [
-  'Ashoka Premier League Season 8',
+  'Ashoka Premier League',
   'Live Bidding Arena',
   'Real-Time WebSocket Engine',
   'Real-Time Bid Synchronization',

@@ -84,7 +84,14 @@ export function TeamsClient() {
   }
 
   if (!season) {
-    return <EmptyState title="No current season going" description="Teams will appear when admin starts a new season." />;
+    return (
+      <EmptyState
+        title="No active season"
+        description="Franchise squads appear when an admin starts a new season."
+        actionHref="/seasons"
+        actionLabel="View past seasons"
+      />
+    );
   }
 
   if (teams.length === 0) {

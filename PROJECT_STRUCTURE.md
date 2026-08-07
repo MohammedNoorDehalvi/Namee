@@ -32,6 +32,8 @@ apl-online-auction/
 │   │   └── AdminChooseNextPlayerPanel.tsx
 │   ├── auction/
 │   │   ├── LiveAuction.tsx           # Public live arena
+│   │   ├── LotCard.tsx               # Shared active-lot card (public + captain)
+│   │   ├── TheaterOverlay.tsx        # Stream QR + chrome for theater mode
 │   │   ├── BidControls.tsx           # Shared bid CTA (login / place bid)
 │   │   ├── AuctionScreen.tsx
 │   │   └── PlayerSoldCelebrationOverlay.tsx  # 5s gavel + shatter
@@ -56,6 +58,12 @@ apl-online-auction/
 │   └── ui/                           # Shared design system
 │       ├── AppToaster.tsx            # Stacked success/error/info toasts
 │       ├── ConfirmDialog.tsx         # confirmAction / promptAction host
+│       ├── Field.tsx                 # Labeled form field primitives
+│       ├── PageShell.tsx             # Page width + PageHeader
+│       ├── PurseBar.tsx              # Franchise remaining-budget bar
+│       ├── SkipToContent.tsx         # Accessibility skip link
+│       ├── CoachMarks.tsx            # First-visit non-blocking tips
+│       ├── StatusBadge.tsx           # Auction + generic status chips
 │       ├── FloatingDock.tsx          # Mobile tab bar + desktop magnify dock
 │       ├── EmptyState.tsx
 │       ├── AuctionSkeleton.tsx
@@ -73,6 +81,10 @@ apl-online-auction/
 │
 ├── hooks/
 │   ├── useAuctionRealtime.ts
+│   ├── useAuctionStatus.ts           # Lightweight status for navbar chrome
+│   ├── useBidLock.ts                 # Admin sold lock (no DOM scraping)
+│   ├── useCurrentSeason.ts           # Active season label for marketing copy
+│   ├── useSfxMute.ts                 # Mute toggle for UI chrome
 │   ├── usePlayers.ts
 │   ├── usePlayerSoldCelebration.ts   # 5s sold queue + dismiss
 │   └── useSession.ts                 # Session + ready flag
@@ -80,7 +92,8 @@ apl-online-auction/
 ├── lib/
 │   ├── auction-server.ts
 │   ├── auction-utils.ts
-│   ├── auction-ui.ts                 # Bid tick SFX, CSV, print
+│   ├── auction-ui.ts                 # Bid SFX, CSV, print, share lot moment
+│   ├── audio-prefs.ts                # Global SFX mute preference
 │   ├── sold-celebration-audio.ts     # Procedural smash/glass SFX
 │   ├── sold-celebration-config.ts    # Timing + visual variants
 │   ├── format.ts                     # formatMoney (₹), status badges

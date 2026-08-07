@@ -1,22 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Radio, Trophy, Users, WalletCards, Zap } from 'lucide-react';
+import { Download, Maximize2, Minimize2, Share2, Trophy, WalletCards, Zap } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { useAuctionRealtime } from '@/hooks/useAuctionRealtime';
 import { usePlayerSoldCelebration } from '@/hooks/usePlayerSoldCelebration';
+import { useSession } from '@/hooks/useSession';
 import { PlayerSoldCelebrationOverlay } from '@/components/auction/PlayerSoldCelebrationOverlay';
+import { BidControls } from '@/components/auction/BidControls';
+import { LotCard } from '@/components/auction/LotCard';
+import { TheaterOverlay } from '@/components/auction/TheaterOverlay';
 import { boughtPlayersForTeam, computeTeamSpent } from '@/lib/auction-utils';
 import { formatMoney, initials } from '@/lib/format';
-import type { Player, Team } from '@/lib/types';
+import type { Auction, Player, Team } from '@/lib/types';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { GlassCard, GlassButton } from '@/components/ui/liquid-glass';
-import { TiltCard } from '@/components/ui/TiltCard';
-import { SpotlightCard } from '@/components/ui/SpotlightCard';
 import { ReconnectingBanner } from '@/components/ui/ReconnectingBanner';
 import { BidFlash } from '@/components/ui/BidFlash';
 import { AutoScrollList } from '@/components/ui/AutoScrollList';
 import { AuctionPageSkeleton } from '@/components/ui/AuctionSkeleton';
-import { downloadCsv, playBidSound, printSummaryHtml } from '@/lib/auction-ui';
+import { AuctionStatusBadge, StatusBadge } from '@/components/ui/StatusBadge';
+import { PurseBar } from '@/components/ui/PurseBar';
+import { downloadCsv, playOutbidSound, printSummaryHtml, shareLotMoment } from '@/lib/auction-ui';
 
 type SaleCelebration = {
   id: string;
@@ -26,8 +31,11 @@ type SaleCelebration = {
 };
 
 export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }) {
-  const { auction, currentPlayer, players, teams, bids, events, loading, currentBid, realtimeDisconnected } =
+  const { auction, currentPlayer, players, teams, bids, events, loading, currentBid, realtimeDisconnected, refresh } =
     useAuctionRealtime();
+  const { session } = useSession();
+  const searchParams = useSearchParams();
+  const isCaptainSession = session?.role === 'captain';
 
   const soldPlayers = players.filter((player) => player.auction_status === 'SOLD' || player.status === 'Sold');
   const unsoldPlayers = players.filter((player) => player.auction_status === 'UNSOLD' || player.status === 'Unsold');
@@ -54,15 +62,39 @@ export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }
 
   const [celebration, setCelebration] = useState<SaleCelebration | null>(null);
   const [celebrationQueue, setCelebrationQueue] = useState<SaleCelebration[]>([]);
+  const [theaterMode, setTheaterMode] = useState(false);
   const seenSoldIdsRef = useRef<Set<string>>(new Set());
   const hasPrimedSoldSnapshotRef = useRef(false);
   const prevBidRef = useRef<number | null>(null);
   const latestBidId = bids[0]?.id || '';
+  const auctionStatus = auction?.auction_status || 'NOT_STARTED';
 
-  // Bid animation + sound
+  // Deep-link theater: /auction?view=theater
+  useEffect(() => {
+    if (searchParams?.get('view') === 'theater') {
+      setTheaterMode(true);
+    }
+  }, [searchParams]);
+
+  // Body class for full chrome hide (navbar/footer/dock)
+  useEffect(() => {
+    document.body.classList.toggle('theater-mode', theaterMode);
+    return () => document.body.classList.remove('theater-mode');
+  }, [theaterMode]);
+
+  // Sync URL without full navigation
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (theaterMode) url.searchParams.set('view', 'theater');
+    else url.searchParams.delete('view');
+    window.history.replaceState({}, '', url.toString());
+  }, [theaterMode]);
+
+  // Bid rise → outbid tick for spectators / others
   useEffect(() => {
     if (prevBidRef.current !== null && currentBid > prevBidRef.current) {
-      playBidSound();
+      playOutbidSound();
     }
     prevBidRef.current = currentBid;
   }, [currentBid]);
@@ -124,42 +156,102 @@ export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }
   }
 
   return (
-    <div className="relative space-y-6 sm:space-y-8">
-      <ReconnectingBanner visible={Boolean(realtimeDisconnected)} />
+    <div
+      className={`relative space-y-6 sm:space-y-8 ${theaterMode ? 'min-h-[80vh] pb-28' : ''}`}
+      data-theater={theaterMode ? '1' : undefined}
+    >
+      <ReconnectingBanner visible={Boolean(realtimeDisconnected) && !theaterMode} />
       <PlayerSoldCelebrationOverlay celebration={soldCelebration} />
+      <TheaterOverlay
+        active={theaterMode}
+        playerName={currentPlayer?.name}
+        currentBid={currentBid}
+        highestTeam={auction?.highest_team_name}
+        auctionStatus={auctionStatus}
+      />
 
-      <GlassCard className="rounded-3xl border-white/15 p-4 sm:p-6 md:p-8">
+      {/* Arena header — compact in theater */}
+      <GlassCard className={`rounded-3xl border-white/15 ${theaterMode ? 'p-3 sm:p-4' : 'p-4 sm:p-6 md:p-8'}`}>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-300 sm:px-4 sm:py-2 sm:text-xs">
-              <Radio size={15} className="animate-pulse text-emerald-400" /> {auction?.auction_status || 'NOT_STARTED'}{' '}
-              AUCTION ARENA
-            </p>
-            <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-white font-display sm:mt-4 sm:text-4xl md:text-6xl">
-              APL Live Auction
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-200 sm:mt-3 sm:text-base">
-              Real-time player lot stream, franchise bidding history, purse analytics, and live team squad rosters.
-            </p>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <AuctionStatusBadge status={auctionStatus} />
+              <StatusBadge tone="gold">{theaterMode ? 'Stream mode' : 'Auction arena'}</StatusBadge>
+            </div>
+            {!theaterMode && (
+              <>
+                <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-white font-display sm:mt-4 sm:text-4xl md:text-6xl">
+                  APL Live Auction
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-300 sm:mt-3 sm:text-base">
+                  {auctionStatus === 'LIVE'
+                    ? 'Bidding is open. Watch the lot, purses, and bid stream update in real time.'
+                    : auctionStatus === 'PAUSED'
+                      ? 'Auction is paused. Captains cannot place new bids until admin resumes.'
+                      : auctionStatus === 'ENDED'
+                        ? 'This session has ended. Review the final report below.'
+                        : 'Waiting for admin to start the auction.'}
+                </p>
+              </>
+            )}
+            {theaterMode && (
+              <p className="mt-2 text-sm font-semibold text-slate-300">
+                Full-screen stream pack · Captains scan QR to bid
+              </p>
+            )}
           </div>
 
-          <div className="relative overflow-hidden rounded-3xl border border-white/15 bg-slate-900/90 p-4 shadow-xl sm:p-5">
-            <BidFlash triggerKey={latestBidId || currentBid} />
-            <p className="text-xs font-extrabold uppercase tracking-wider text-amber-400">Current Leading Franchise</p>
-            <div className="mt-2.5 flex items-center gap-3.5">
-              <LogoAvatar src={highestTeam?.logo_url} label={highestTeam?.team_name || 'No bids'} size="md" />
-              <div>
-                <p className="text-base font-extrabold text-white font-display">
-                  {auction?.highest_team_name ? `${auction.highest_team_name}` : 'No bids placed yet'}
-                </p>
-                <p className="mt-0.5 text-xs font-bold text-amber-300">Highest Bid: {formatMoney(currentBid)}</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+            <button
+              type="button"
+              onClick={() => setTheaterMode((v) => !v)}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-200 transition hover:bg-white/10"
+              title={theaterMode ? 'Exit theater mode' : 'Theater mode for projectors / OBS'}
+            >
+              {theaterMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              {theaterMode ? 'Exit theater' : 'Theater mode'}
+            </button>
+
+            {currentPlayer && (
+              <button
+                type="button"
+                onClick={() =>
+                  shareLotMoment({
+                    playerName: currentPlayer.name,
+                    role: currentPlayer.role,
+                    currentBid,
+                    highestTeam: auction?.highest_team_name,
+                    auctionStatus,
+                    formatMoney,
+                  })
+                }
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs font-bold uppercase tracking-wide text-amber-200 transition hover:bg-amber-400/20"
+              >
+                <Share2 className="h-4 w-4" />
+                Share lot
+              </button>
+            )}
+
+            {!theaterMode && (
+              <div className="relative min-w-[220px] overflow-hidden rounded-3xl border border-white/15 bg-slate-900/90 p-4 shadow-xl sm:p-5">
+                <BidFlash triggerKey={latestBidId || currentBid} />
+                <p className="text-xs font-extrabold uppercase tracking-wider text-amber-400">Leading franchise</p>
+                <div className="mt-2.5 flex items-center gap-3.5">
+                  <LogoAvatar src={highestTeam?.logo_url} label={highestTeam?.team_name || 'No bids'} size="md" />
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-extrabold text-white font-display">
+                      {auction?.highest_team_name || 'No bids yet'}
+                    </p>
+                    <p className="mt-0.5 text-xs font-bold text-amber-300">Highest: {formatMoney(currentBid)}</p>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </GlassCard>
 
-      {auction?.auction_status === 'ENDED' ? (
+      {auctionStatus === 'ENDED' ? (
         <FinalReport
           teams={leaderboard}
           players={soldPlayers}
@@ -168,20 +260,32 @@ export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }
           bids={bids}
         />
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[1.35fr_0.9fr] lg:gap-8">
-          <CurrentPlayerCard
-            player={currentPlayer}
-            currentBid={currentBid}
-            highestTeam={auction?.highest_team_name || null}
-            flashKey={latestBidId || currentBid}
-          />
-          <div className="space-y-5 sm:space-y-6">
-            <BudgetPanel teams={teams} players={soldPlayers} />
-            <BidHistory bids={bids} teams={teams} />
-            <EventPanel events={events} />
-            <UnsoldPanel players={unsoldPlayers} />
-            {mode === 'public' && (
-              <div className="space-y-3">
+        <div
+          className={`grid gap-6 lg:gap-8 ${
+            theaterMode ? 'lg:grid-cols-1' : 'lg:grid-cols-[1.35fr_0.9fr]'
+          }`}
+        >
+          <div className="space-y-4">
+            <LotCard
+              player={currentPlayer}
+              currentBid={currentBid}
+              highestTeam={auction?.highest_team_name || null}
+              flashKey={latestBidId || currentBid}
+              auctionStatus={auctionStatus}
+              theaterMode={theaterMode}
+            />
+
+            {auction && currentPlayer && (mode === 'captain' || isCaptainSession) && (
+              <BidControls
+                auction={auction as Auction}
+                player={currentPlayer}
+                currentBid={currentBid}
+                onBid={() => void refresh({ silent: true })}
+              />
+            )}
+
+            {mode === 'public' && !isCaptainSession && (
+              <div className="space-y-2">
                 <GlassButton
                   href="/captain-login"
                   variant="emerald"
@@ -190,68 +294,23 @@ export function LiveAuction({ mode = 'public' }: { mode?: 'public' | 'captain' }
                   <span>Captain login to place bids</span>
                 </GlassButton>
                 <p className="text-center text-xs text-slate-400">
-                  Spectators can watch free. Only franchise captains bid after signing in.
+                  Spectators watch free. Franchise captains bid after signing in.
                 </p>
               </div>
             )}
           </div>
+
+          {!theaterMode && (
+            <div className="space-y-5 sm:space-y-6">
+              <BudgetPanel teams={teams} players={soldPlayers} />
+              <BidHistory bids={bids} teams={teams} />
+              <EventPanel events={events} />
+              <UnsoldPanel players={unsoldPlayers} />
+            </div>
+          )}
         </div>
       )}
     </div>
-  );
-}
-
-function CurrentPlayerCard({
-  player,
-  currentBid,
-  highestTeam,
-  flashKey,
-}: {
-  player: Player | null;
-  currentBid: number;
-  highestTeam: string | null;
-  flashKey: string | number;
-}) {
-  if (!player) {
-    return (
-      <GlassCard className="flex min-h-[320px] items-center justify-center border-white/15 p-6 text-center sm:min-h-[420px]">
-        <EmptyState title="No active player on lot" description="Waiting for administrator to initiate the next player lot." />
-      </GlassCard>
-    );
-  }
-
-  return (
-    <TiltCard tiltMaxAngle={8}>
-      <SpotlightCard
-        spotlightColor="rgba(245, 158, 11, 0.2)"
-        className="relative overflow-hidden rounded-[2rem] border border-white/15 bg-slate-900/90 p-5 shadow-2xl sm:rounded-[2.5rem] sm:p-6 md:p-8"
-      >
-        <BidFlash triggerKey={flashKey} />
-        <div className="space-y-6">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
-            <LogoAvatar src={player.photo_url} label={player.name} size="xl" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-emerald-400/30 bg-emerald-400/20 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-emerald-300">
-                  ACTIVE AUCTION LOT
-                </span>
-              </div>
-              <h2 className="break-words text-3xl font-extrabold text-white font-display sm:text-4xl md:text-6xl">{player.name}</h2>
-              <p className="text-xs font-semibold uppercase tracking-wider text-amber-300 sm:text-sm">
-                {player.role} • Batting: {player.batting_style || 'N/A'} • Bowling: {player.bowling_style || 'N/A'}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 pt-2 sm:gap-4">
-            <BigStat label="Base Price" value={formatMoney(player.base_price)} />
-            <BigStat label="Current Bid" value={formatMoney(currentBid)} highlighted />
-            <BigStat label="Highest Bidder" value={highestTeam || 'No bids yet'} />
-            <BigStat label="Lot Status" value={player.auction_status || player.status} />
-          </div>
-        </div>
-      </SpotlightCard>
-    </TiltCard>
   );
 }
 
@@ -269,10 +328,6 @@ function BudgetPanel({ teams, players }: { teams: Team[]; players: Player[] }) {
           const bought = boughtPlayersForTeam(players, team);
           const maxP = team.max_players || 4;
           const full = bought.length >= maxP;
-          const remainingPct = Math.min(
-            100,
-            Math.max(0, (Number(team.remaining_budget || 0) / Number(team.budget || 50000)) * 100),
-          );
 
           return (
             <div key={team.id} className="space-y-2.5 rounded-2xl border border-white/10 bg-slate-950/70 p-3 sm:p-4">
@@ -292,20 +347,13 @@ function BudgetPanel({ teams, players }: { teams: Team[]; players: Player[] }) {
                 )}
               </div>
 
-              <div className="space-y-1 pt-1">
-                <div className="flex justify-between text-[11px] font-semibold text-slate-300">
-                  <span>Purse: {formatMoney(team.remaining_budget)}</span>
-                  <span>
-                    {bought.length}/{maxP} Squad
-                  </span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-500"
-                    style={{ width: `${remainingPct}%` }}
-                  />
-                </div>
-              </div>
+              <PurseBar
+                remaining={team.remaining_budget}
+                budget={team.budget}
+                squadCount={bought.length}
+                maxPlayers={maxP}
+                compact
+              />
             </div>
           );
         })}

@@ -82,7 +82,7 @@ export function PlayerPoolShowcase() {
           <h3 className="text-xl font-bold text-white font-display">No Approved Players Found</h3>
           <p className="text-sm text-slate-400 leading-relaxed">
             {activeTab === 'All'
-              ? 'No players are currently registered in the database for Season 8. Approved players will automatically appear here.'
+              ? 'No approved players in the current season pool yet. They appear here after admin approval.'
               : `No approved players registered under the "${activeTab}" category.`}
           </p>
         </div>

@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { ShieldCheck, Trophy, X, Eye } from 'lucide-react';
+import { Archive, Eye, ShieldCheck, Trophy } from 'lucide-react';
 import type { Season } from '@/lib/types';
+import { GlassCard } from '@/components/ui/liquid-glass';
 
 const allowedWithoutSeason = ['/admin-login', '/admin-dashboard', '/seasons'];
+const DISMISS_KEY = 'apl_season_gate_dismissed';
 
 export function SeasonPublicGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -19,17 +21,23 @@ export function SeasonPublicGate({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
+    try {
+      setIsDismissed(sessionStorage.getItem(DISMISS_KEY) === '1');
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
     let alive = true;
 
     async function load() {
       const res = await fetch('/api/season/current', { cache: 'no-store' });
       const json = await res.json().catch(() => ({ season: null }));
-
       if (alive) setSeason(json.season || null);
     }
 
     void load();
-
     const id = window.setInterval(load, 5000);
 
     return () => {
@@ -38,48 +46,96 @@ export function SeasonPublicGate({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  if (season === undefined || season || isAllowed || isDismissed) {
+  function dismiss() {
+    setIsDismissed(true);
+    try {
+      sessionStorage.setItem(DISMISS_KEY, '1');
+    } catch {
+      // ignore
+    }
+  }
+
+  // Loading season: render children to avoid layout flash
+  if (season === undefined || isAllowed) {
     return <>{children}</>;
   }
 
+  // Active season
+  if (season) {
+    return <>{children}</>;
+  }
+
+  // No season — full gate unless dismissed
+  if (!isDismissed) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-3xl items-center justify-center px-4 py-12">
+        <GlassCard className="relative w-full rounded-[2rem] border-white/15 p-8 text-center shadow-2xl sm:p-10">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-amber-400/30 bg-amber-400/15 text-amber-300">
+            <Trophy size={28} aria-hidden />
+          </div>
+
+          <p className="mt-6 text-xs font-black uppercase tracking-[0.28em] text-amber-300">Season status</p>
+          <h1 className="mt-3 text-3xl font-extrabold text-white font-display sm:text-4xl md:text-5xl">
+            No active season
+          </h1>
+          <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-slate-300 sm:text-base">
+            The last APL season has ended. Live registration, bidding, and squad pages open when an admin starts a new
+            season. You can still browse archives or explore the site.
+          </p>
+
+          <div className="mt-8 grid gap-3 sm:grid-cols-3">
+            <Link href="/seasons" className="btn-primary justify-center">
+              <Archive size={18} /> Past seasons
+            </Link>
+            <Link href="/admin-login" className="btn-ghost justify-center">
+              <ShieldCheck size={18} /> Admin login
+            </Link>
+            <button
+              type="button"
+              onClick={dismiss}
+              className="btn-ghost justify-center border border-white/15 text-white hover:bg-white/10"
+            >
+              <Eye size={18} /> Browse site
+            </button>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  // Dismissed: show soft residual banner + content
   return (
-    <main className="mx-auto flex min-h-[70vh] max-w-4xl items-center justify-center px-4 py-16">
-      <section className="relative w-full rounded-[2rem] border border-white/10 bg-white/[0.06] p-7 text-center shadow-2xl backdrop-blur md:p-10">
-        {/* Cross / Close Button */}
-        <button
-          onClick={() => setIsDismissed(true)}
-          className="absolute top-5 right-5 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all shadow-lg"
-          title="Dismiss warning and view website"
-          aria-label="Close warning and view website"
-        >
-          <X size={20} />
-        </button>
-
-        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-yellow-300/15 text-yellow-300">
-          <Trophy size={36} />
+    <>
+      <div
+        className="sticky top-[4.5rem] z-30 border-b border-amber-400/25 bg-amber-500/15 px-4 py-2.5 backdrop-blur-md sm:top-[4.75rem]"
+        role="status"
+      >
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 text-sm">
+          <p className="font-semibold text-amber-100">
+            No active season — browsing in preview mode. Archives stay available.
+          </p>
+          <div className="flex items-center gap-3">
+            <Link href="/seasons" className="font-bold text-amber-200 underline-offset-2 hover:underline">
+              View seasons
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setIsDismissed(false);
+                try {
+                  sessionStorage.removeItem(DISMISS_KEY);
+                } catch {
+                  // ignore
+                }
+              }}
+              className="text-xs font-bold text-white/70 hover:text-white"
+            >
+              Show notice
+            </button>
+          </div>
         </div>
-
-        <p className="mt-6 text-sm font-black uppercase tracking-[0.35em] text-yellow-300">APL Season Status</p>
-        <h1 className="mt-3 text-4xl font-black text-white md:text-6xl">NO CURRENT SEASON GOING</h1>
-        <p className="mx-auto mt-4 max-w-2xl text-white/60">
-          The last APL season has ended. Current season pages are hidden until admin starts a new season. You can still close this notice to explore the website.
-        </p>
-
-        <div className="mt-8 grid gap-3 sm:grid-cols-3">
-          <Link href="/admin-login" className="btn-primary justify-center">
-            <ShieldCheck size={18} /> Admin Login
-          </Link>
-          <Link href="/seasons" className="btn-ghost justify-center">
-            <Trophy size={18} /> View Old Seasons
-          </Link>
-          <button
-            onClick={() => setIsDismissed(true)}
-            className="btn-ghost justify-center border border-white/20 text-white hover:bg-white/10"
-          >
-            <Eye size={18} /> Browse Website
-          </button>
-        </div>
-      </section>
-    </main>
+      </div>
+      {children}
+    </>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
@@ -42,15 +42,28 @@ export function FloatingDock({ items = publicItems }: { items?: DockItem[] }) {
   const mouseX = useMotionValue(Infinity);
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [theaterMode, setTheaterMode] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setTheaterMode(document.body.classList.contains('theater-mode'));
+    sync();
+    const obs = new MutationObserver(sync);
+    obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
 
   const hideForRoute =
     HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
-    (pathname === '/auction' && searchParams?.get('captain') === '1');
+    (pathname === '/auction' && searchParams?.get('captain') === '1') ||
+    theaterMode;
 
   if (hideForRoute) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:bottom-4 sm:px-4">
+    <div
+      data-floating-dock
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:bottom-4 sm:px-4"
+    >
       <motion.div
         onMouseMove={(e) => mouseX.set(e.pageX)}
         onMouseLeave={() => mouseX.set(Infinity)}

@@ -2,9 +2,9 @@
 
 import { PlayerCard } from '@/components/players/PlayerCard';
 import { PlayerFilters } from '@/components/players/PlayerFilters';
-import { SectionHeading } from '@/components/ui/SectionHeading';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { CardSkeleton } from '@/components/ui/Skeleton';
+import { PageHeader, PageShell } from '@/components/ui/PageShell';
 import { useApprovedPlayers } from '@/hooks/usePlayers';
 import { Users } from 'lucide-react';
 
@@ -13,14 +13,14 @@ export default function PlayersPage() {
   const hasFilters = Boolean(search.trim()) || role !== 'All';
 
   return (
-    <section className="px-4 pb-4 sm:px-6">
-      <SectionHeading
-        eyebrow="Approved Players"
+    <PageShell>
+      <PageHeader
+        eyebrow="Approved players"
         title="APL Player List"
-        subtitle="Browse the approved auction pool. Captains bid live after login; everyone else can follow the action on the public auction floor."
+        description="Browse the approved auction pool. Captains bid live after login; everyone else can follow on the public auction floor."
       />
       <PlayerFilters search={search} setSearch={setSearch} role={role} setRole={setRole} />
-      <div className="mx-auto mt-10 max-w-7xl">
+      <div className="mt-10">
         {loading ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -62,6 +62,6 @@ export default function PlayersPage() {
           </div>
         )}
       </div>
-    </section>
+    </PageShell>
   );
 }

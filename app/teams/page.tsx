@@ -1,11 +1,17 @@
 import { TeamsClient } from '@/components/teams/TeamsClient';
-import { SectionHeading } from '@/components/ui/SectionHeading';
+import { PageHeader, PageShell } from '@/components/ui/PageShell';
 
 export default function TeamsPage() {
   return (
-    <section className="px-4 pb-4 sm:px-6">
-      <SectionHeading eyebrow="Teams" title="Team-wise Player List" subtitle="See captain, team budget, remaining budget, bought players, total points spent, and sold players." />
-      <div className="mx-auto mt-10 max-w-7xl"><TeamsClient /></div>
-    </section>
+    <PageShell>
+      <PageHeader
+        eyebrow="Teams"
+        title="Team-wise player list"
+        description="Captain, purse, remaining budget, bought players, and points spent for every franchise."
+      />
+      <div className="mt-10">
+        <TeamsClient />
+      </div>
+    </PageShell>
   );
 }

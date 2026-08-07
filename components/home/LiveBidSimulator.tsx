@@ -297,7 +297,7 @@ export function LiveBidSimulator() {
                       Base: {formatMoney(INITIAL_PLAYER.basePrice)}
                     </span>
                     <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-medium">
-                      APL Season 8
+                      APL Live
                     </span>
                   </div>
                 </div>

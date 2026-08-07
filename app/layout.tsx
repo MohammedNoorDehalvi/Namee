@@ -11,6 +11,7 @@ import { SplineIntroOverlay } from '@/components/ui/SplineIntroOverlay';
 import { FloatingDock } from '@/components/ui/FloatingDock';
 import { GlassFilter } from '@/components/ui/liquid-glass';
 import { SmoothScrollProvider } from '@/components/providers/SmoothScrollProvider';
+import { SkipToContent } from '@/components/ui/SkipToContent';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -55,12 +56,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable} ${playfair.variable}`}>
       <body>
+        <SkipToContent />
         <GlassFilter />
         <SplineIntroOverlay />
         <Navbar />
         <SmoothScrollProvider>
           <div className="app-shell">
-            <SeasonPublicGate>{children}</SeasonPublicGate>
+            <main id="main-content" tabIndex={-1} className="outline-none">
+              <SeasonPublicGate>{children}</SeasonPublicGate>
+            </main>
           </div>
         </SmoothScrollProvider>
         <Footer />

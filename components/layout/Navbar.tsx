@@ -2,11 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ArrowUpRight, Menu, Trophy, X } from 'lucide-react';
+import { ArrowUpRight, Menu, Trophy, Volume2, VolumeX, X } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clearSession, useSession } from '@/hooks/useSession';
+import { useAuctionStatus } from '@/hooks/useAuctionStatus';
+import { useSfxMute } from '@/hooks/useSfxMute';
+import { AuctionStatusBadge } from '@/components/ui/StatusBadge';
 import { GlassEffect, GlassButton, GlassCard } from '@/components/ui/liquid-glass';
+import { toast } from '@/components/ui/AppToaster';
 
 const links = [
   { label: 'Home', href: '/' },
@@ -23,12 +27,20 @@ export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { session } = useSession();
+  const { status: auctionStatus } = useAuctionStatus(5000);
+  const { muted, toggle: toggleMute } = useSfxMute();
+  const isLive = auctionStatus === 'LIVE';
 
   function handleLogout() {
     clearSession();
     setOpen(false);
     router.push('/');
     router.refresh();
+  }
+
+  function handleMuteToggle() {
+    const next = toggleMute();
+    toast.info(next ? 'Sound effects muted' : 'Sound effects on');
   }
 
   return (
@@ -80,10 +92,10 @@ export function Navbar() {
                     />
                   )}
                   <span className="relative z-10">{link.label}</span>
-                  {link.highlight && (
+                  {link.highlight && isLive && (
                     <span className="relative z-10 flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                     </span>
                   )}
                 </Link>
@@ -93,16 +105,19 @@ export function Navbar() {
 
           {/* Action CTAs & Session */}
           <div className="hidden lg:flex items-center gap-3">
-            {/* Auction floor shortcut — status shown on the arena page itself */}
-            <Link
-              href="/auction"
-              className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-900/60 transition-colors"
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-              </span>
-              <span className="tracking-wide uppercase">Auction floor</span>
+            <Link href="/auction" className="transition hover:opacity-90" aria-label="Open auction floor">
+              <AuctionStatusBadge status={auctionStatus || 'NOT_STARTED'} />
             </Link>
+
+            <button
+              type="button"
+              onClick={handleMuteToggle}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white"
+              aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
+              title={muted ? 'Unmute SFX' : 'Mute SFX'}
+            >
+              {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
 
             {session ? (
               <button
@@ -154,8 +169,8 @@ export function Navbar() {
                   >
                     <span className="flex items-center gap-2">
                       {link.label}
-                      {link.highlight && (
-                        <span className="px-2.5 py-0.5 text-[10px] uppercase font-extrabold bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 rounded-full">
+                      {link.highlight && isLive && (
+                        <span className="rounded-full border border-emerald-400/30 bg-emerald-400/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-emerald-300">
                           Live
                         </span>
                       )}
@@ -164,7 +179,15 @@ export function Navbar() {
                   </Link>
                 ))}
 
-                <div className="pt-3 border-t border-white/10">
+                <div className="pt-3 border-t border-white/10 space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleMuteToggle}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white/5 py-3 text-sm font-bold text-slate-100 transition hover:bg-white/10"
+                  >
+                    {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                    {muted ? 'Unmute sound effects' : 'Mute sound effects'}
+                  </button>
                   {session ? (
                     <button
                       type="button"

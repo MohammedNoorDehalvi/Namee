@@ -5,8 +5,11 @@ import { motion } from 'framer-motion';
 import { ArrowUpRight, Gavel, Sparkles, Trophy, Users } from 'lucide-react';
 
 import { GlassCard, GlassButton } from '@/components/ui/liquid-glass';
+import { useCurrentSeason } from '@/hooks/useCurrentSeason';
 
 export function SaaSFooterCTA() {
+  const { displayName } = useCurrentSeason();
+
   return (
     <section className="py-24 relative overflow-hidden bg-transparent">
       {/* Background Radial Glow */}
@@ -23,7 +26,7 @@ export function SaaSFooterCTA() {
             {/* Top Pill */}
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold uppercase tracking-widest shadow-lg">
               <Sparkles className="w-4 h-4 text-amber-400" />
-              <span>APL Season 8 Digital Auction</span>
+              <span>{displayName} · Digital auction</span>
             </div>
 
             {/* Heading */}

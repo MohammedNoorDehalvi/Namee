@@ -8,7 +8,7 @@ import { nextBidAmount } from '@/lib/auction-utils';
 import type { Auction, Player } from '@/lib/types';
 import { toast } from '@/components/ui/AppToaster';
 import { formatMoney } from '@/lib/format';
-import { playBidSound } from '@/lib/auction-ui';
+import { playBidAcceptedSound } from '@/lib/auction-ui';
 
 export function BidControls({
   auction,
@@ -67,7 +67,7 @@ export function BidControls({
         toast.error(json.error || 'Bid failed');
         return;
       }
-      playBidSound();
+      playBidAcceptedSound();
       toast.success(`Bid placed: ${formatMoney(json.bid_amount || nextAmount)}`);
       onBid();
     } catch {

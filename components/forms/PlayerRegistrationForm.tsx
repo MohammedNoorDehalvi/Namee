@@ -12,6 +12,7 @@ import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { BorderBeam } from "@/components/ui/BorderBeam";
 import { Meteors } from "@/components/ui/Meteors";
 import { ShimmerButton } from "@/components/ui/ShimmerButton";
+import { useCurrentSeason } from "@/hooks/useCurrentSeason";
 
 const initialForm = {
   name: "",
@@ -35,6 +36,7 @@ export function PlayerRegistrationForm() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submittedName, setSubmittedName] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const { displayName } = useCurrentSeason();
 
   function update(key: string, value: string) {
     setForm((old) => ({ ...old, [key]: value }));
@@ -177,7 +179,7 @@ export function PlayerRegistrationForm() {
             </span>
             <h1 className="text-2xl font-extrabold text-white font-display sm:text-3xl">Player Registration</h1>
             <p className="text-xs text-slate-300 sm:text-sm">
-              Submit your details and photo to enter the current season auction pool.
+              Submit your details and photo to enter the {displayName} auction pool.
             </p>
           </div>
         </div>

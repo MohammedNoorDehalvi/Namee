@@ -5,17 +5,20 @@ import { Gavel, Menu, Trophy, Users, WalletCards, X } from 'lucide-react';
 import { useAuctionRealtime } from '@/hooks/useAuctionRealtime';
 import { usePlayerSoldCelebration } from '@/hooks/usePlayerSoldCelebration';
 import { PlayerSoldCelebrationOverlay } from '@/components/auction/PlayerSoldCelebrationOverlay';
+import { LotCard } from '@/components/auction/LotCard';
 import { readSession, useSession } from '@/hooks/useSession';
 import { nextBidAmount } from '@/lib/auction-utils';
 import type { Bid, Captain, Player, Team } from '@/lib/types';
 import { formatMoney, initials } from '@/lib/format';
 import { toast } from '@/components/ui/AppToaster';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { AuctionPageSkeleton } from '@/components/ui/AuctionSkeleton';
 import { ReconnectingBanner } from '@/components/ui/ReconnectingBanner';
 import { HighestBidderBadge } from '@/components/ui/HighestBidderBadge';
-import { BidFlash } from '@/components/ui/BidFlash';
 import { AutoScrollList } from '@/components/ui/AutoScrollList';
-import { playBidSound } from '@/lib/auction-ui';
+import { PurseBar } from '@/components/ui/PurseBar';
+import { AuctionStatusBadge, StatusBadge } from '@/components/ui/StatusBadge';
+import { playBidAcceptedSound, playOutbidSound } from '@/lib/auction-ui';
+import { CoachMarks } from '@/components/ui/CoachMarks';
 
 export function CaptainDashboardClient() {
   const { session } = useSession();
@@ -34,24 +37,33 @@ export function CaptainDashboardClient() {
   const teamFull = bought.length >= (team?.max_players || 4);
   const latestBidId = bids[0]?.id || '';
 
-  // Live bid animation + sound when bid changes from someone else
+  // Live bid animation + outbid tone when someone else raises
   useEffect(() => {
     if (prevBidRef.current !== null && currentBid > prevBidRef.current) {
-      playBidSound();
+      playOutbidSound();
     }
     prevBidRef.current = currentBid;
   }, [currentBid]);
 
   const cannotBidReason = (() => {
     if (!session || session.role !== 'captain') return 'Login as captain first.';
-    if (auction?.auction_status !== 'LIVE') return 'Auction is not live.';
-    if (!currentPlayer) return 'No current player selected.';
-    if (currentPlayer.auction_status !== 'CURRENT' || currentPlayer.status !== 'Available') return 'Player already completed.';
-    if (teamFull) return 'Team Full';
-    if (alreadyHighest) return 'You are already highest bidder.';
-    if (team && nextBid > team.remaining_budget) return 'Budget is not enough.';
+    if (auction?.auction_status === 'PAUSED') return 'Auction is paused';
+    if (auction?.auction_status !== 'LIVE') return 'Auction is not live';
+    if (!currentPlayer) return 'Waiting for next lot';
+    if (currentPlayer.auction_status !== 'CURRENT' || currentPlayer.status !== 'Available') return 'Lot already closed';
+    if (teamFull) return 'Squad is full';
+    if (alreadyHighest) return 'You are highest bidder';
+    if (team && nextBid > team.remaining_budget) return 'Insufficient purse';
     return null;
   })();
+
+  const bidBlockedTone = alreadyHighest
+    ? 'success'
+    : cannotBidReason?.includes('paused') || cannotBidReason?.includes('not live')
+      ? 'warning'
+      : cannotBidReason
+        ? 'danger'
+        : 'neutral';
 
   async function loadMine() {
     const stored = readSession();
@@ -109,7 +121,7 @@ export function CaptainDashboardClient() {
 
     if (!res.ok) return toast.error(json.error || 'Bid failed');
 
-    playBidSound();
+    playBidAcceptedSound();
     toast.success(`Bid placed: ${formatMoney(json.bid_amount)}`);
     void refresh({ silent: true });
     void loadMine();
@@ -130,30 +142,60 @@ export function CaptainDashboardClient() {
 
   if (loading) {
     return (
-      <main className="section-shell flex min-h-[50vh] items-center justify-center">
-        <LoadingSpinner label="Loading captain room..." />
-      </main>
+      <div data-hide-dock className="px-4 py-6">
+        <AuctionPageSkeleton />
+      </div>
     );
   }
+
+  const afterBidPreview =
+    team && !cannotBidReason
+      ? Math.max(0, Number(team.remaining_budget || 0) - nextBid)
+      : null;
 
   return (
     <div data-hide-dock>
       <ReconnectingBanner visible={Boolean(realtimeDisconnected)} />
       <PlayerSoldCelebrationOverlay celebration={celebration} />
+      <CoachMarks
+        scope="captain"
+        tips={[
+          {
+            id: 'purse-sticky',
+            title: 'Your purse stays on top',
+            body: 'Remaining budget and squad slots are always visible in the sticky bar — no scrolling needed under pressure.',
+          },
+          {
+            id: 'bid-preview',
+            title: 'See the next bid before you hit it',
+            body: 'The lot card shows next bid and purse after bid so you never overshoot your budget.',
+          },
+          {
+            id: 'highest',
+            title: 'Already highest? Sit tight',
+            body: 'When you are the highest bidder the button greys with a clear badge — no accidental re-bids needed.',
+          },
+        ]}
+      />
 
-      {/* Sticky remaining budget — under fixed navbar */}
+      {/* Sticky purse strip */}
       <div className="sticky top-[4.5rem] z-40 border-b border-white/10 bg-slate-950/95 px-4 py-2.5 backdrop-blur-xl sm:top-[4.75rem] sm:px-6">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <WalletCards className="h-4 w-4 text-apl-gold" />
-            <span className="text-xs font-bold uppercase tracking-wide text-white/50">Remaining budget</span>
-            <span className="text-lg font-black text-apl-gold">{formatMoney(team?.remaining_budget)}</span>
-            <span className="text-xs text-white/40">/ {formatMoney(team?.budget)}</span>
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-center gap-2">
+              <WalletCards className="h-4 w-4 text-apl-gold" aria-hidden />
+              <span className="text-[10px] font-bold uppercase tracking-wide text-white/50">Your franchise purse</span>
+              <AuctionStatusBadge status={auction?.auction_status || 'NOT_STARTED'} className="scale-90" />
+            </div>
+            <PurseBar
+              remaining={team?.remaining_budget}
+              budget={team?.budget}
+              squadCount={bought.length}
+              maxPlayers={team?.max_players || 4}
+              compact
+            />
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-white/45">
-              Squad {bought.length}/{team?.max_players || 4}
-            </span>
+          <div className="flex shrink-0 items-center gap-2">
             <HighestBidderBadge visible={Boolean(alreadyHighest)} teamName={team?.team_name} />
           </div>
         </div>
@@ -166,10 +208,8 @@ export function CaptainDashboardClient() {
               <Avatar src={team?.logo_url} label={captain?.team_name || session?.team_name || 'Team'} size="lg" />
 
               <div className="min-w-0">
-                <p className="inline-flex rounded-full border border-apl-gold/25 bg-apl-gold/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-apl-gold">
-                  Captain Auction Room
-                </p>
-                <h1 className="mt-3 break-words text-3xl font-black text-white sm:text-5xl">
+                <StatusBadge tone="gold">Captain auction room</StatusBadge>
+                <h1 className="mt-2 break-words text-3xl font-black text-white font-display sm:text-5xl">
                   {captain?.team_name || session?.team_name || 'Your Team'}
                 </h1>
                 <div className="mt-2 flex items-center gap-2 text-white/65">
@@ -188,7 +228,7 @@ export function CaptainDashboardClient() {
           <div className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-3">
             <Avatar src={highestTeam?.logo_url} label={auction?.highest_team_name || 'No bids'} size="sm" />
             <p className="text-sm text-white/65">
-              Highest Bidder:{' '}
+              Highest bidder:{' '}
               <span className="font-bold text-white">
                 {auction?.highest_team_name
                   ? `${auction.highest_team_name} / ${auction.highest_bidder_captain_name || 'Captain'}`
@@ -199,67 +239,57 @@ export function CaptainDashboardClient() {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
-          <div className="glass-card relative min-h-[420px] overflow-hidden p-5 sm:p-7">
-            <BidFlash triggerKey={latestBidId || currentBid} />
-
-            {!currentPlayer ? (
-              <div className="flex min-h-[360px] items-center justify-center text-center text-white/55">
-                No current player selected by admin.
-              </div>
-            ) : (
-              <div className="grid gap-5 md:grid-cols-[180px_1fr] lg:grid-cols-[220px_1fr]">
-                <div className="mx-auto aspect-square w-full max-w-[220px] overflow-hidden rounded-[2rem] border border-white/10 bg-black/30">
-                  {currentPlayer.photo_url ? (
-                    <img
-                      src={currentPlayer.photo_url}
-                      alt={currentPlayer.name}
-                      loading="eager"
-                      decoding="async"
-                      referrerPolicy="no-referrer"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="grid h-full place-items-center text-4xl font-black text-apl-gold">{initials(currentPlayer.name)}</div>
-                  )}
-                </div>
-
-                <div>
-                  <p className="text-sm font-black uppercase tracking-[0.2em] text-apl-gold">Current Auction Player</p>
-                  <h2 className="mt-2 text-3xl font-black text-white sm:text-4xl">{currentPlayer.name}</h2>
-                  <p className="mt-2 text-sm text-white/60 sm:text-base">
-                    {currentPlayer.role} • Batting: {currentPlayer.batting_style} • Bowling: {currentPlayer.bowling_style}
-                  </p>
-
-                  <div className="mt-6 grid gap-3 grid-cols-2">
-                    <Stat label="Current Bid" value={formatMoney(currentBid)} gold />
-                    <Stat label="Next Bid" value={formatMoney(nextBid)} />
-                    <Stat label="Your Budget" value={formatMoney(team?.remaining_budget)} />
-                    <Stat label="Your Players" value={`${bought.length}/${team?.max_players || 4}`} />
+          <LotCard
+            player={currentPlayer}
+            currentBid={currentBid}
+            highestTeam={auction?.highest_team_name || null}
+            flashKey={latestBidId || currentBid}
+            auctionStatus={auction?.auction_status}
+            nextBid={nextBid}
+            emptyTitle="Waiting for admin"
+            emptyDescription="No current player on the lot. Bids unlock when the next player is called."
+            extraStats={[
+              { label: 'Your purse', value: formatMoney(team?.remaining_budget) },
+              { label: 'Your squad', value: `${bought.length}/${team?.max_players || 4}` },
+            ]}
+            footer={
+              <div className="space-y-3">
+                {alreadyHighest && (
+                  <div className="flex justify-center sm:justify-start">
+                    <HighestBidderBadge visible teamName={team?.team_name} />
                   </div>
+                )}
 
-                  {alreadyHighest && (
-                    <div className="mt-4">
-                      <HighestBidderBadge visible teamName={team?.team_name} />
-                    </div>
-                  )}
+                {afterBidPreview != null && (
+                  <p className="text-center text-xs text-slate-400 sm:text-left">
+                    After this bid your purse would be <strong className="text-white">{formatMoney(afterBidPreview)}</strong>
+                  </p>
+                )}
 
-                  <button
-                    type="button"
-                    onClick={() => void bid()}
-                    disabled={Boolean(cannotBidReason) || busy}
-                    className={`btn-primary mt-6 hidden w-full justify-center transition sm:inline-flex ${busy ? 'opacity-70' : ''} disabled:cursor-not-allowed disabled:opacity-45 disabled:grayscale`}
-                  >
-                    <Gavel className="h-5 w-5" />
-                    {busy ? 'Bidding…' : cannotBidReason ? cannotBidReason : `Bid ${formatMoney(nextBid)}`}
-                  </button>
+                {cannotBidReason && !busy && (
+                  <div className="hidden sm:flex">
+                    <StatusBadge tone={bidBlockedTone === 'success' ? 'success' : bidBlockedTone === 'warning' ? 'warning' : 'danger'}>
+                      {cannotBidReason}
+                    </StatusBadge>
+                  </div>
+                )}
 
-                  {cannotBidReason && !busy && (
-                    <p className="mt-3 hidden text-center text-sm text-white/55 sm:block">{cannotBidReason}</p>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => void bid()}
+                  disabled={Boolean(cannotBidReason) || busy}
+                  className={`btn-primary hidden w-full justify-center transition active:scale-[0.98] sm:inline-flex ${
+                    busy ? 'opacity-70' : ''
+                  } disabled:cursor-not-allowed disabled:opacity-50 ${
+                    alreadyHighest ? 'disabled:grayscale-0 border border-emerald-400/30 bg-emerald-500/20 text-emerald-100' : 'disabled:grayscale'
+                  }`}
+                >
+                  <Gavel className="h-5 w-5" />
+                  {busy ? 'Bidding…' : alreadyHighest ? 'You are highest bidder' : cannotBidReason ? cannotBidReason : `Bid ${formatMoney(nextBid)}`}
+                </button>
               </div>
-            )}
-          </div>
+            }
+          />
 
           <CaptainSidebarContent team={team} captain={captain} bought={bought} bids={bids} teams={teams} players={players} compact />
         </section>
@@ -278,21 +308,32 @@ export function CaptainDashboardClient() {
 
       {/* Mobile sticky bid bar */}
       <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-slate-950/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl sm:hidden">
-        <div className="mx-auto flex max-w-lg flex-col gap-1.5">
+        <div className="mx-auto flex max-w-lg flex-col gap-2">
+          <PurseBar
+            remaining={team?.remaining_budget}
+            budget={team?.budget}
+            squadCount={bought.length}
+            maxPlayers={team?.max_players || 4}
+            compact
+          />
           <div className="flex items-center justify-between text-xs text-white/55">
             <span>
-              Next bid <strong className="text-white">{formatMoney(nextBid)}</strong>
+              Next <strong className="text-white">{formatMoney(nextBid)}</strong>
             </span>
-            <span>Purse {formatMoney(team?.remaining_budget)}</span>
+            {cannotBidReason && (
+              <span className={`font-semibold ${alreadyHighest ? 'text-emerald-300' : 'text-amber-200'}`}>{cannotBidReason}</span>
+            )}
           </div>
           <button
             type="button"
             onClick={() => void bid()}
             disabled={Boolean(cannotBidReason) || busy || !currentPlayer}
-            className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-45 disabled:grayscale"
+            className={`btn-primary w-full justify-center active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
+              alreadyHighest ? 'disabled:grayscale-0 border border-emerald-400/30 bg-emerald-500/20 text-emerald-100' : 'disabled:grayscale'
+            }`}
           >
             <Gavel className="h-5 w-5" />
-            {busy ? 'Bidding…' : cannotBidReason ? cannotBidReason : `Bid ${formatMoney(nextBid)}`}
+            {busy ? 'Bidding…' : alreadyHighest ? 'Highest bidder' : cannotBidReason ? cannotBidReason : `Bid ${formatMoney(nextBid)}`}
           </button>
         </div>
       </div>
@@ -499,11 +540,4 @@ function Avatar({
   );
 }
 
-function Stat({ label, value, gold }: { label: string; value: React.ReactNode; gold?: boolean }) {
-  return (
-    <div className={`rounded-3xl border p-4 ${gold ? 'border-apl-gold/40 bg-apl-gold/10' : 'border-white/10 bg-white/[0.04]'}`}>
-      <p className="text-sm text-white/45">{label}</p>
-      <p className="mt-1 text-2xl font-black text-white">{value}</p>
-    </div>
-  );
-}
+

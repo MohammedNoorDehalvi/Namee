@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AuctionEvent, Player, Team } from '@/lib/types';
+import { SOLD_CELEBRATION_DURATION_MS } from '@/lib/sold-celebration-config';
 
 export type SaleCelebration = {
   id: string;
@@ -17,9 +18,11 @@ type Options = {
   teams: Team[];
   loading: boolean;
   fallbackTeam?: Team | null;
+  /** Override default 5s celebration window (ms). */
+  durationMs?: number;
 };
 
-const CELEBRATION_VISIBLE_MS = 4200;
+const CELEBRATION_VISIBLE_MS = SOLD_CELEBRATION_DURATION_MS;
 
 function resolveTeam(
   event: AuctionEvent,
@@ -42,7 +45,14 @@ function resolvePlayerName(event: AuctionEvent, players: Player[]) {
   return players.find((item) => item.id === event.player_id)?.name || event.message.split(' sold to ')[0]?.trim() || 'Player';
 }
 
-export function usePlayerSoldCelebration({ events, players, teams, loading, fallbackTeam = null }: Options) {
+export function usePlayerSoldCelebration({
+  events,
+  players,
+  teams,
+  loading,
+  fallbackTeam = null,
+  durationMs = CELEBRATION_VISIBLE_MS,
+}: Options) {
   const [celebration, setCelebration] = useState<SaleCelebration | null>(null);
   const [queue, setQueue] = useState<SaleCelebration[]>([]);
   const seenSoldEventIdsRef = useRef<Set<string>>(new Set());
@@ -108,7 +118,7 @@ export function usePlayerSoldCelebration({ events, players, teams, loading, fall
     dismissTimerRef.current = window.setTimeout(() => {
       setCelebration(null);
       dismissTimerRef.current = null;
-    }, CELEBRATION_VISIBLE_MS);
+    }, durationMs);
 
     return () => {
       if (dismissTimerRef.current !== null) {
@@ -116,7 +126,7 @@ export function usePlayerSoldCelebration({ events, players, teams, loading, fall
         dismissTimerRef.current = null;
       }
     };
-  }, [celebration]);
+  }, [celebration, durationMs]);
 
   useEffect(() => {
     return () => {
